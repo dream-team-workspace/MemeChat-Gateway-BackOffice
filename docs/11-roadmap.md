@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
-| Planning complete | Phase 0 |
+| Status | Phase 0 complete; Phase 1 UI template in progress |
+| Planning complete | 2026-10-21 |
+| Current branch | `feature/template` |
 | Delivery model | Vertical slices, each demoable |
 | Estimates | Relative (S/M/L), not dates |
 
@@ -19,7 +20,7 @@
 | 5 | Launch | Production deploy, monitoring, training, rollback drill | 4 |
 | 6 | Deferred | Ops jobs, RBAC, global audit, user directory, charts | 5 + backend |
 
-## 2. Phase 0 — Planning (current)
+## 2. Phase 0 — Planning (complete)
 
 Deliverables:
 
@@ -35,9 +36,28 @@ Exit criteria:
 - Design tokens and contrast overrides approved.
 - Branch protection and environments are configured.
 
-## 3. Phase 1 — Foundation (M)
+## 3. Phase 1 — Foundation (M, in progress)
 
 Goal: a running shell with a real design system, a real BFF skeleton, and a mock contract.
+
+**Implemented on feature/template (2026-10-21):**
+
+- Vite + React 19 + TypeScript, Tailwind v4, semantic tokens, Open Sans.
+- Code-based TanStack Router with protected routes and mock session.
+- Login screen (desktop split / mobile form), mock SSO buttons, demo mode, theme toggle.
+- Responsive app shell: desktop sidebar, mobile drawer with focus trap, sticky topbar,
+  environment badge, skip link.
+- Pinned Settings at the sidebar bottom, plus environment and operator menu.
+- Dummy Overview, Capabilities, Models, Users, Operations, and Settings pages.
+- Light/dark/system theme, persisted with no-flash boot script.
+- Build and typecheck pass; axe clean on core screens; no overflow at 360–1440.
+
+**Still required for Phase 1 exit:**
+
+- BFF skeleton, session/OIDC interface, mock API store.
+- Shared Zod schemas and MSW fixtures.
+- ESLint/Prettier, Vitest/Playwright, and CI.
+- Docker/deploy skeleton.
 
 Deliverables:
 
@@ -69,11 +89,11 @@ Deliverables:
 
 Exit criteria:
 
-- `npm run dev` shows the shell; login/logout works with mock OIDC.
-- Every route renders loading/empty/error states with mock data.
-- Design review passes light/dark, keyboard, axe.
-- CI is green on a PR to `development`.
-- No secret in the bundle scan.
+- `npm run dev` shows the shell; login/logout works with mock OIDC. **(done)**
+- Design review passes light/dark, keyboard, axe. **(core screens done)**
+- Every route renders loading/empty/error states with mock data. **(not yet)**
+- CI is green on a PR to `development`. **(not yet)**
+- No secret in the bundle scan. **(no secrets present; scan not automated yet)**
 
 Demo: navigate the shell, switch theme, sign in/out, open empty pages with consistent states.
 

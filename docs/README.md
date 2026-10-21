@@ -1,7 +1,8 @@
 # Documentation index
 
-This repository is documentation-first. The application does not exist yet; these files are
-the build contract for Phase 1 onward.
+This repository is documentation-first. The planning corpus is complete; the Phase 1 UI
+template is implemented on `feature/template` with mock auth and dummy data. The BFF, live
+admin API, tests, and deployment workflows are still pending.
 
 ## Start here
 
