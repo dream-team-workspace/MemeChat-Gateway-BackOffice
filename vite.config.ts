@@ -8,10 +8,17 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@shared": fileURLToPath(new URL("./shared", import.meta.url)),
     },
   },
   server: {
     port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8787",
+        changeOrigin: false,
+      },
+    },
     // Cloudflare Tunnel forwards the public Host header. Localhost is allowed
     // by Vite automatically; the console hostnames are allowed for preview and
     // Access testing behind the tunnel.
