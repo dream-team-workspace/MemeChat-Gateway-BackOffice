@@ -24,7 +24,7 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 |---|---|---|---|
 | Runtime (CI/prod) | Node.js LTS | 24.x | Vite 8 requires Node ≥20.19/22.12; 24 LTS is supported by the ecosystem and GitHub Actions. Local Node 26.5 is compatible. |
 | Package manager | npm | 11.x | Already present, lockfile-based, no extra tool; workspaces not needed |
-| Language | TypeScript | 7.0.x | Strict typing, type-only imports, current stable. Fall back to 6.0.x only if a required ESLint/plugin blocks TS 7; record the pin in an ADR. |
+| Language | TypeScript | 6.0.3 (pinned) | Strict typing, type-only imports. The template pins 6.0.3; TS 7 is deferred until the ESLint/TanStack toolchain is verified together, then recorded in an ADR. |
 | Module format | ESM | — | Vite, Hono, and modern Node all use ESM; no dual-package complexity |
 
 ### 2.2 Browser application
@@ -34,7 +34,7 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 | UI runtime | React + React DOM | 19.3.x | Stable concurrent features, ecosystem, team familiarity |
 | Build tool | Vite | 8.3.x | Fast dev server, native ESM, first-class Tailwind v4 plugin, static output |
 | Styling | Tailwind CSS + @tailwindcss/vite | 4.3.x | CSS-first config, semantic tokens, no PostCSS chain |
-| Component source | shadcn CLI + generated primitives | CLI 4.22.x | Open code, owned components, accessible primitives |
+| Component source | shadcn-style primitives owned in the repo; shadcn CLI when adding registry components | CLI 4.22.x | Open code, owned components, accessible primitives |
 | Icons | lucide-react | 1.61.x | Consistent, tree-shakeable, shadcn default |
 | Toasts | sonner | 2.0.x | shadcn's current toast primitive, accessible live regions |
 | Animation helper | tw-animate-css | 1.4.x | shadcn-compatible utilities without a runtime animation library |

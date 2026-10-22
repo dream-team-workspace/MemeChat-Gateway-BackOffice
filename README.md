@@ -4,13 +4,75 @@ Internal operator console for the **MemeChat AI Gateway**. It gives the team a s
 auditable UI over the gateway's backend-management API: capability registry, provider
 routing, kill switches, model catalog, user ledger/usage, and credit grants.
 
-> **Status: Phase 0 — planning.** This repository currently contains the planning corpus,
-> not the application. The existing root TypeScript scaffold is a placeholder and is
-> replaced in Phase 1. Nothing here is deployed yet.
+> **Status: Phase 1 — UI template (mock auth).** The console runs locally with a responsive
+> shell, login, theme switching, and dummy page content. The BFF, real admin API, test suite,
+> and deployment workflows are not wired yet. Nothing is deployed.
 
 - **Remote:** [dream-team-workspace/MemeChat-Gateway-BackOffice](https://github.com/dream-team-workspace/MemeChat-Gateway-BackOffice)
-- **Gateway backend:** [MemeChat-Gateway](https://github.com/dream-team-workspace/MemeChat-Gateway) (the source of truth for the admin API)
+- **Gateway backend:** [MemeChat-Gateway](https://github.com/dream-team-workspace/MemeChat-Gateway) (source of truth for the admin API)
 - **Local gateway checkout:** `/home/dani/GolandProjects/MemeChat-Gateway`
+- **Working branch:** `feature/template` (branched from `master` at the planning baseline)
+
+---
+
+## What is implemented
+
+- **Login** — split brand/operator panel on desktop, compact form on mobile, GitHub/Google
+  provider buttons, demo mode, theme toggle.
+- **Responsive app shell** — fixed sidebar on desktop, off-canvas drawer with focus trap on
+  mobile, sticky top bar, skip link, environment badge.
+- **Left-bottom settings** — Settings is pinned in the sidebar footer above the environment
+  card and the operator menu.
+- **Pages** — Overview, Capabilities, Models, Users, Operations, Settings. All content is
+  dummy/template data; no gateway request is made.
+- **Theme** — light/dark/system, persisted in `localStorage`, applied before first paint by
+  `public/theme-init.js`.
+- **Design system** — repo-owned primitives under `src/components/ui`, Tailwind v4 semantic
+  tokens from [DESIGN.md](DESIGN.md), Open Sans variable, shadcn-style composition.
+- **Quality checks** — `npm run build`, `npm run typecheck`; axe audit clean on core
+  screens (light/dark/mobile); no horizontal overflow at 360/768/1024/1280/1440; mobile drawer
+  focus trap verified.
+
+### Routes
+
+| Route | Page |
+|---|---|
+| `/login` | Sign in |
+| `/` | Overview / dummy dashboard |
+| `/capabilities` | Capability registry (filterable dummy table) |
+| `/models` | Model catalog (searchable dummy table) |
+| `/users` | UID lookup + recent lookups (mock) |
+| `/operations` | Health, registry cache, environment |
+| `/settings` | Appearance, account, environment |
+
+Protected routes redirect to `/login` until the mock session exists. The mock session is
+stored in `localStorage` under `bo-session`; sign out clears it.
+
+---
+
+## Local development
+
+~~~bash
+npm install
+npm run dev          # Vite on http://localhost:5173
+npm run build        # typecheck + production build
+npm run typecheck    # TypeScript only
+npm run preview      # preview the production build
+~~~
+
+This branch does not have a BFF or live API. The login buttons create a mock session and the
+pages use static template data. Do not add secrets or point the browser at the gateway's
+`/internal/admin/*` routes.
+
+### Planned next
+
+- Hono BFF with OIDC/session, CSRF, allowlist, and `X-Admin-Actor`.
+- TanStack Query/Table + React Hook Form/Zod for the real admin contract.
+- MSW fixtures, Vitest, Playwright, and CI.
+- Docker + staging/production deployment.
+
+See [docs/11-roadmap.md](docs/11-roadmap.md) and
+[docs/10-ci-cd-and-environments.md](docs/10-ci-cd-and-environments.md).
 
 ---
 
@@ -25,6 +87,9 @@ routing, kill switches, model catalog, user ledger/usage, and credit grants.
 
 No direct pushes to `master` or `development`. The full policy, required checks, and
 deployment workflow are in [docs/10-ci-cd-and-environments.md](docs/10-ci-cd-and-environments.md).
+
+The current template is intentionally scoped to its feature branch and is **not merged** into
+`development` or `master`.
 
 ---
 
@@ -54,48 +119,30 @@ Start with the [documentation index](docs/README.md).
 
 ---
 
-## Target stack
+## Tech stack in the template
 
-- **React 19 + TypeScript + Vite** single-page application
-- **shadcn/ui**, components copied into the repository and owned by us
+- **React 19 + TypeScript + Vite 8**
 - **Tailwind CSS v4** with semantic CSS variables
-- **TanStack Router, Query, and Table**
-- **React Hook Form + Zod** for forms and contract validation
-- **Hono BFF** (Node) that holds the admin secret, authenticates operators, and attributes
-  every mutation with `X-Admin-Actor`
-- **Vitest + Testing Library + MSW + Playwright** for the test pyramid
-- **Docker + GitHub Actions** for staging/production deployment
+- **TanStack Router** (code-based route tree)
+- **repo-owned shadcn-style primitives** (CVA variants, `cn()`, `components/ui`)
+- **Lucide React** icons, **Open Sans Variable** self-hosted
+- **date/number formatting** via native `Intl`
+- Mock auth and dummy data only; no state library or API client yet
 
-The full rationale is in [docs/04-tech-stack.md](docs/04-tech-stack.md). The one non-negotiable
-security rule: **the browser never receives `ADMIN_API_SECRET` or calls the gateway's
-`/internal/admin/*` routes directly.**
+The full target stack (BFF, Query/Table, RHF/Zod, Vitest/Playwright, Docker) is documented in
+[docs/04-tech-stack.md](docs/04-tech-stack.md).
 
----
-
-## Local development (planned for Phase 1)
-
-~~~bash
-npm install
-npm run dev          # Vite web app
-npm run dev:api      # Hono BFF on http://localhost:8787
-npm run test         # Vitest
-npm run test:e2e     # Playwright
-npm run lint
-npm run typecheck
-~~~
-
-Local development uses the mock admin API by default, because the gateway's admin routes
-are contract-planned but not implemented yet. See
-[docs/02-backend-contract-analysis.md](docs/02-backend-contract-analysis.md) and
-[docs/06-api-integration.md](docs/06-api-integration.md).
+The non-negotiable security rule remains: **the browser never receives
+`ADMIN_API_SECRET` or calls the gateway's `/internal/admin/*` routes directly.**
 
 ---
 
 ## Current repository state
 
-- Planning documents and requirements only.
-- No application, BFF, tests, CI, or deployment configuration yet.
-- The existing `src/index.ts`, `package.json`, and `tsconfig.json` are the original bare
-  TypeScript scaffold and are not the target architecture.
-- Do not implement features before reading the relevant requirement file and
-  [docs/03-architecture.md](docs/03-architecture.md).
+- UI template implemented on `feature/template`.
+- No BFF, live admin API integration, test suite, CI, or deployment configuration yet.
+- The original bare TypeScript scaffold was replaced by the Vite app; `src/index.ts` no
+  longer exists.
+- Treat dummy data and mock auth as template-only. Do not ship them as production behavior.
+- Read the relevant requirement file and [docs/03-architecture.md](docs/03-architecture.md)
+  before adding real data flows.
