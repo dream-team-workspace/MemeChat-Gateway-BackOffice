@@ -1,9 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
 
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { systemApi, systemKeys } from "@/platform/api/system";
+import { cn } from "@/lib/utils";
 
 const titles: Record<string, string> = {
   "/": "Overview",
@@ -14,9 +17,22 @@ const titles: Record<string, string> = {
   "/settings": "Settings",
 };
 
+function titleFor(pathname: string) {
+  if (pathname.startsWith("/capabilities/")) return "Capabilities";
+  if (pathname.startsWith("/users/")) return "Users";
+  return titles[pathname] ?? "BackOffice";
+}
+
+function environmentLabel(value: string | undefined) {
+  if (!value) return "Checking";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export function Topbar({ onMenuOpen }: { onMenuOpen: () => void }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const title = titles[pathname] ?? "BackOffice";
+  const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
+  const title = titleFor(pathname);
+  const environment = meta.data?.environment;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6 lg:px-8">
@@ -39,8 +55,17 @@ export function Topbar({ onMenuOpen }: { onMenuOpen: () => void }) {
 
       <div className="flex shrink-0 items-center gap-1.5">
         <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
-          <span className="size-1.5 rounded-full bg-warning" />
-          Staging
+          <span
+            className={cn(
+              "size-1.5 rounded-full",
+              environment === "production"
+                ? "bg-success"
+                : environment === "staging"
+                  ? "bg-warning"
+                  : "bg-info",
+            )}
+          />
+          {environmentLabel(environment)}
         </Badge>
         <ThemeToggle />
       </div>

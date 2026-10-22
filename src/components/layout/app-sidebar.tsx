@@ -8,12 +8,14 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 
 import { BrandMark } from "@/components/common/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { systemApi, systemKeys } from "@/platform/api/system";
 import { UserMenu } from "@/components/layout/user-menu";
 
 type NavItem = {
@@ -47,6 +49,8 @@ function isActive(pathname: string, to: string) {
 
 export function AppSidebar({ mobile = false, onClose, onNavigate }: AppSidebarProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
+  const environment = meta.data?.environment ?? "development";
 
   const renderNav = (items: NavItem[]) =>
     items.map((item) => {
@@ -148,12 +152,21 @@ export function AppSidebar({ mobile = false, onClose, onNavigate }: AppSidebarPr
               Environment
             </span>
             <Badge variant="outline" className="gap-1.5 px-2 py-0">
-              <span className="size-1.5 rounded-full bg-warning" />
-              Staging
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  environment === "production"
+                    ? "bg-success"
+                    : environment === "staging"
+                      ? "bg-warning"
+                      : "bg-info",
+                )}
+              />
+              {environment.charAt(0).toUpperCase() + environment.slice(1)}
             </Badge>
           </div>
           <p className="mt-2 truncate font-mono text-[10px] text-muted-foreground">
-            api.dev.memechat.app
+            {meta.data?.adminApiMode === "mock" ? "BFF mock store" : "api.dev.memechat.app"}
           </p>
         </div>
 

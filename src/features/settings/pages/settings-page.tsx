@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Building2, Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { signOut, useSession } from "@/platform/auth/auth-store";
+import { systemApi, systemKeys } from "@/platform/api/system";
 import { cn } from "@/lib/utils";
 import { useTheme, type Theme } from "@/lib/theme";
 
@@ -37,6 +39,7 @@ const themeOptions: Array<{
 
 export function SettingsPage() {
   const session = useSession();
+  const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
   const { theme, setTheme } = useTheme();
 
   if (!session) return null;
@@ -158,17 +161,17 @@ export function SettingsPage() {
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Target</span>
                 <Badge variant="outline" className="gap-1.5">
-                  <span className="size-1.5 rounded-full bg-warning" />
-                  Staging
+                  <span className={cn("size-1.5 rounded-full", meta.data?.environment === "production" ? "bg-success" : meta.data?.environment === "staging" ? "bg-warning" : "bg-info")} />
+                  {meta.data?.environment ?? "development"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Gateway</span>
-                <span className="truncate font-mono text-[11px]">api.dev.memechat.app</span>
+                <span className="truncate font-mono text-[11px]">{meta.data?.adminApiMode === "mock" ? "BFF mock store" : "api.dev.memechat.app"}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Console</span>
-                <span className="font-mono text-[11px]">v0.1.0</span>
+                <span className="font-mono text-[11px]">{meta.data?.version ?? "v0.1.0"}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Auth</span>
