@@ -3,7 +3,9 @@ import { Hono } from "hono";
 import {
   creditGrantInputSchema,
   creditGrantResultSchema,
+  ledgerEntrySchema,
   ledgerPageSchema,
+  usageEventSchema,
   usagePageSchema,
 } from "../../../shared/admin-api/index.js";
 import { config } from "../config.js";
@@ -31,7 +33,7 @@ users.get("/:uid/ledger", async (c) => {
     c.get("actor"),
     { requestId: c.get("requestId") },
   );
-  return c.json(ledgerPageSchema.parse(normalizePage(camelize(raw), ledgerPageSchema.shape.items.element)));
+  return c.json(ledgerPageSchema.parse(normalizePage(camelize(raw), ledgerEntrySchema)));
 });
 
 users.get("/:uid/usage", async (c) => {
@@ -49,7 +51,7 @@ users.get("/:uid/usage", async (c) => {
     c.get("actor"),
     { requestId: c.get("requestId") },
   );
-  return c.json(usagePageSchema.parse(normalizePage(camelize(raw), usagePageSchema.shape.items.element)));
+  return c.json(usagePageSchema.parse(normalizePage(camelize(raw), usageEventSchema)));
 });
 
 users.post("/:uid/credits/grant", async (c) => {

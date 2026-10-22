@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { isoDateTimeSchema } from "./common";
+import { isoDateTimeSchema } from "./common.js";
 
 export const modelSchema = z.object({
   id: z.string(),

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { isoDateTimeSchema, paginatedSchema } from "./common";
+import { isoDateTimeSchema, paginatedSchema } from "./common.js";
 
 export const ledgerStateSchema = z.enum([
   "PENDING_SPEND",

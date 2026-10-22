@@ -45,6 +45,13 @@ export const healthSchema = z.object({
 
 export type Health = z.infer<typeof healthSchema>;
 
+export const cacheInvalidationSchema = z.object({
+  invalidatedAt: isoDateTimeSchema,
+  revision: z.number().int().nonnegative().optional(),
+});
+
+export type CacheInvalidation = z.infer<typeof cacheInvalidationSchema>;
+
 export const metaSchema = z.object({
   environment: z.enum(["development", "staging", "production"]),
   authMode: z.enum(["cloudflare-access", "development"]),

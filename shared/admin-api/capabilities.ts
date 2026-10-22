@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { isoDateTimeSchema } from "./common";
+import { isoDateTimeSchema } from "./common.js";
 
 export const providerRouteSchema = z.object({
   id: z.union([z.number(), z.string()]),

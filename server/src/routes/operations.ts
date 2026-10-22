@@ -9,7 +9,7 @@ import type { AppEnv } from "../types.js";
 const operations = new Hono<AppEnv>();
 const isMock = config.adminApiMode === "mock";
 
-operations.post("/cache/invalidate", async (c) => {
+operations.post("/invalidate", async (c) => {
   if (isMock) {
     return c.json(mockStore.invalidateCache());
   }
