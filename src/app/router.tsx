@@ -8,14 +8,14 @@ import {
 import { AppLayout } from "@/app/layouts/app-layout";
 import { RootLayout } from "@/app/layouts/root-layout";
 import { NotFoundPage } from "@/app/not-found-page";
-import { LoginPage } from "@/features/auth/pages/login-page";
+import { LoginPage } from "@/platform/auth/pages/login-page";
 import { CapabilitiesPage } from "@/features/capabilities/pages/capabilities-page";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
 import { ModelsPage } from "@/features/models/pages/models-page";
 import { OperationsPage } from "@/features/operations/pages/operations-page";
 import { SettingsPage } from "@/features/settings/pages/settings-page";
 import { UsersPage } from "@/features/users/pages/users-page";
-import { ensureSession } from "@/features/auth/auth-store";
+import { ensureSession } from "@/platform/auth/auth-store";
 
 const rootRoute = createRootRoute({
   component: RootLayout,

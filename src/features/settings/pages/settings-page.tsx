@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { signOut, useSession } from "@/features/auth/auth-store";
+import { signOut, useSession } from "@/platform/auth/auth-store";
 import { cn } from "@/lib/utils";
 import { useTheme, type Theme } from "@/lib/theme";
 

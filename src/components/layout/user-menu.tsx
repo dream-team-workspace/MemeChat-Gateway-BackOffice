@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronUp, LogOut, Settings2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { signOut, useSession } from "@/features/auth/auth-store";
+import { signOut, useSession } from "@/platform/auth/auth-store";
 import { cn } from "@/lib/utils";
 
 export function UserMenu() {

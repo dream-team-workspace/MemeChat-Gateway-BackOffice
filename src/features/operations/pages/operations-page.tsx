@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Activity, CheckCircle2, Database, RefreshCw, Server, ShieldCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
-import { useSession } from "@/features/auth/auth-store";
+import { useSession } from "@/platform/auth/auth-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
