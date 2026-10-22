@@ -53,6 +53,9 @@ Observed on the workstation (2026-10-22):
 | Existing SSH hostname | `admin.dream-team.works` |
 | Local tunnel config | none (the tunnel is token-managed; the token file is under `~/.cloudflared`) |
 | Access JWKS cache | `~/.cloudflared/rough-water-d6a6.cloudflareaccess.com-jwks` |
+| `console.dream-team.works` DNS | **Not created yet** (checked 2026-10-22) |
+| `cloudflared` process | **Not running** on the workstation at check time |
+| Origin certificate | No `cert.pem`, so manage the token tunnel from the dashboard; `cloudflared tunnel list` cannot be used locally |
 
 The existing tunnel is used for SSH. Do **not** reuse the SSH hostname for the
 web console: a tunnel public hostname maps to one service, and the SSH
@@ -124,12 +127,18 @@ static origin. It returns the identity only when the Access cookie is valid.
 ### 4.1 Add the console public hostname to the tunnel
 
 1. Zero Trust dashboard → **Networks → Tunnels**.
-2. Select the tunnel that already serves `admin.dream-team.works`.
+2. Select the tunnel that already serves `admin.dream-team.works`. This tunnel is
+   token-managed, so the public hostname is configured in the dashboard, not in a local
+   `config.yml`.
 3. **Public hostname → Add a public hostname**:
    - Subdomain: `console`
    - Domain: `dream-team.works`
    - Service: `HTTP` → `localhost:4173` (or `8787` once the BFF exists)
 4. Save. Cloudflare creates the DNS record for the hostname.
+5. Start the token-managed tunnel on the **same host** as the origin. If the tunnel
+   runs elsewhere, `localhost:4173` points at the wrong machine. Use the existing
+   token/service or the dashboard's tunnel run command; no local `cert.pem` is
+   present, so CLI tunnel management is unavailable.
 
 The origin port depends on how the static site is served:
 
@@ -141,6 +150,15 @@ The origin port depends on how the static site is served:
 
 The origin must bind to localhost (or be firewalled to the tunnel). If the
 origin is publicly reachable, Access at the edge is not a security boundary.
+
+Whatever server serves `dist/` must return `index.html` for client routes such as
+`/settings` (SPA fallback) while leaving `/cdn-cgi/access/*` to Cloudflare; otherwise
+a refresh on a deep link returns 404.
+
+For local preview through the tunnel, `vite.config.ts` allows `.dream-team.works` in
+`server.allowedHosts` and `preview.allowedHosts`. Without that, Vite returns
+`403 Blocked request. This host is not allowed.` before the SPA loads. If the console
+domain changes, add the new hostname there.
 
 ### 4.2 Create the Access application
 
@@ -188,9 +206,10 @@ the tunnel public hostname is missing.
 
 Behavior:
 
-1. On the first protected navigation, `ensureSession()` fetches
+1. In production, on the first protected navigation, `ensureSession()` fetches
    `/cdn-cgi/access/get-identity` with a 5-second timeout; the cached identity is
-   refreshed on the next protected navigation after five minutes.
+   refreshed on the next protected navigation after five minutes. Local development
+   returns the configured development identity instead of fetching.
 2. A 200 identity is mapped to `{id,name,email,initials,role,signedInAt,provider}`.
 3. A 401, 403, opaque redirect, non-JSON body, or network failure means
    unauthenticated; the router redirects to `/login`.
@@ -218,8 +237,9 @@ This value is:
 origin it shows the login fallback and cannot authenticate; use `npm run dev`
 for local work.
 
-In development, sign-out returns to `/login` and the next full reload re-establishes
-the development identity.
+In development, sign-out returns to `/login` and keeps the fallback page visible so
+it can be reviewed. A fresh load of a protected route (for example `/`) re-establishes
+the development identity; the login button does the same.
 
 ## 6. Security model
 
@@ -267,6 +287,7 @@ apply.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Access login loops | The application is not on the hostname, or the origin is not reached through the tunnel | Check the Access application domain and tunnel public hostname |
+| `403 Blocked request. This host is not allowed.` | Vite preview/dev rejected the tunnel Host header | Add the hostname or `.dream-team.works` to `server.allowedHosts` / `preview.allowedHosts` |
 | `/cdn-cgi/access/get-identity` returns 404 | Cloudflare Access is not proxying the hostname | Attach the hostname to the Access application; verify DNS is proxied |
 | Console shows login page but button loops | The origin is not behind Access (preview/local, or a direct IP) | Use `npm run dev` locally; put production behind the tunnel/Access |
 | `get-identity` fetch fails with CORS | A redirect was followed to the team login domain | The app uses `redirect: "manual"`; keep it |

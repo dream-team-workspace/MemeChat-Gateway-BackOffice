@@ -72,8 +72,8 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 | HTTP mocking | MSW | 3.0.x | Same handlers in browser, Node, and Playwright |
 | E2E | Playwright | 1.64.x | Cross-browser, tracing, visual screenshots |
 | Accessibility | axe-core + @axe-core/playwright + vitest-axe | current | Automated WCAG checks in unit and E2E |
-| Lint | ESLint + typescript-eslint | 10.13.x / 8.72.x | Flat config, typed rules |
-| Formatting | Prettier + Tailwind plugin | 3.9.x / 0.8.x | Deterministic formatting |
+| Lint | ESLint + typescript-eslint + React hooks/refresh plugins | 10.13.0 / 8.72.0 | Flat config, typed rules; `npm run lint` is the CI PR check |
+| Formatting | Prettier + Tailwind plugin | planned | Not installed yet; add before enforcing a format check |
 | Boundary linting | eslint-plugin-boundaries | current | Enforce feature/folder dependency rules |
 
 ### 2.6 Delivery

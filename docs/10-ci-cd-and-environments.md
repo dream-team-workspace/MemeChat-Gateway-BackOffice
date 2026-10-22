@@ -2,11 +2,30 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed; no workflows are active in Phase 0 |
+| Status | Active CI: lint on PRs, clean build on pushes; deploy gated |
 | Remote | `git@github.com:dream-team-workspace/MemeChat-Gateway-BackOffice.git` |
 | Production branch | `master` |
 | Staging branch | `development` |
 | Deployment | Docker image + SSH to server |
+
+## 0. Current CI (implemented 2026-10-22)
+
+Workflow: `.github/workflows/ci.yml`.
+
+| Trigger | Jobs | Behavior |
+|---|---|---|
+| PR → `development` / `master` | `Lint` | `npm ci` + `npm run lint`; required check |
+| Push → `development` | `Build` | `npm ci`, `rm -rf dist`, `npm run build`; no artifact/cache |
+| Push → `master` | `Build` + `Deploy production` | build first; deploy skipped unless `vars.DEPLOY_ENABLED == 'true'` |
+
+Notes:
+
+- The build job does **not** upload artifacts and does **not** use `actions/cache`. It is a
+  pass/fail gate only; nothing is retained for a later phase.
+- The deploy job uses `environment: production` and a placeholder step. Do not set
+  `DEPLOY_ENABLED=true` until the real server deployment and its secrets exist.
+- The only required PR check is `Lint`. `Build` runs on pushes only.
+- No staging deployment job exists yet. A push to `development` builds but does not deploy.
 
 ## 1. Branch model
 
@@ -23,20 +42,21 @@ chore/*   ──PR──►     │                 │
 
 | Branch | Created from | Merges into | Deploy | Protection |
 |---|---|---|---|---|
-| `master` | — | — | Production | No direct push; PR required; 1 approval; checks; linear history |
-| `development` | `master` | — | Staging | No direct push; PR required; 1 approval; checks |
+| `master` | — | — | Gated production deploy (pending setup) | No direct push; PR required; 1 approval; checks; linear history |
+| `development` | `master` | — | Build check only (staging deploy later) | No direct push; PR required; 1 approval; checks |
 | `feature/*` | `development` | `development` | — | Owner |
 | `fix/*` | `development` | `development` | — | Owner |
 | `chore/*` | `development` | `development` | — | Owner |
-| `hotfix/*` | `master` | `master` + back-merge `development` | Production | Incident process |
+| `hotfix/*` | `master` | `master` + back-merge `development` | Production (after setup) | Incident process |
 
 Release flow:
 
 1. Feature PR → `development` (squash merge).
-2. CI deploys `development` to staging on every merge.
-3. Staging verification + approval.
-4. Release PR `development` → `master`; CI must pass; production environment approval.
-5. Squash merge to `master`; CI builds/pushes the image and deploys production.
+2. CI runs a clean build check on `development`; no staging deployment yet.
+3. Staging verification + approval once staging deployment is wired.
+4. Release PR `development` → `master`; the `Lint` check must pass.
+5. Squash merge to `master`; CI builds, then the gated production deploy runs only after
+   `DEPLOY_ENABLED` and the real deploy steps are configured.
 6. Tag `vX.Y.Z` on the production commit.
 
 Hotfix flow:
@@ -57,7 +77,8 @@ Configure these once in the repository settings:
   - Require a pull request before merging.
   - Require 1 approval (2 for production changes if the team grows).
   - Dismiss stale approvals on new commits.
-  - Require status checks: `verify`, `e2e`, `secret-scan`.
+  - Require status checks: `Lint` (current); add build/E2E/secret-scan checks when those
+    run on pull requests.
   - Require branches to be up to date before merging.
   - Require linear history (squash merge only).
   - Restrict who can push; disallow force pushes and deletions.
@@ -84,7 +105,10 @@ them without approval.
 - Actions permissions: `contents: read` by default; elevate per job.
 - No pull_request_target with untrusted code.
 
-## 3. Workflows (planned)
+## 3. Target workflows (only the current subset is active)
+
+> Today only `.github/workflows/ci.yml` exists, with the jobs in §0. The jobs below describe
+> the target pipeline once tests, staging, and deployment are implemented.
 
 ### 3.1 `ci.yml` — verify
 
@@ -339,33 +363,40 @@ Target: < 5 minutes. No rebuild; pull the previous immutable image.
 
 ## 10. First-time setup checklist
 
-- [ ] Create the empty GitHub repository (done) and confirm `master` is the default branch.
-- [ ] Push `master` and `development` (Phase 0).
-- [ ] Protect both branches; require checks.
-- [ ] Create `staging` and `production` environments; add reviewers.
-- [ ] Add SSH/GHCR secrets.
+- [x] Create the GitHub repository and confirm `master` is the default branch.
+- [x] Push `master` and `development` (planning baseline).
+- [x] Add `.github/workflows/ci.yml` (lint on PR, build on push).
+- [ ] Protect both branches; require the `Lint` check on PRs.
+- [ ] Create the `production` environment and add reviewers.
+- [ ] Create the `staging` environment/workflow when staging deployment is implemented.
+- [ ] Add deployment secrets *and* replace the deploy placeholder before setting
+      `DEPLOY_ENABLED=true`.
 - [ ] Provision the server(s), Docker, proxy, TLS, deploy user, directories.
 - [ ] Create the Cloudflare Access application (staging/production) and allowlist policy.
 - [ ] Set gateway `ADMIN_API_SECRET` and network allowlist.
 - [ ] Add the runtime env file (0600).
-- [ ] Add `deploy.sh` and `docker-compose.yml` to the repo in Phase 1.
-- [ ] Run a staging deploy and a rollback drill.
+- [ ] When deployment setup starts, add `deploy.sh` and `docker-compose.yml`.
+- [ ] Run a staging deploy and a rollback drill once staging exists.
 - [ ] Document on-call/owner for production approvals.
 
-## 11. What Phase 0 does and does not do
+## 11. Current CI status
 
-Phase 0 pushes the planning corpus and creates the branches. It does **not** create active
-workflows, because there is no app to build or deploy yet and a failing workflow on `master`
-would be noise. Phase 1 adds:
+Implemented (2026-10-22):
 
-- `package.json` scripts
-- `Dockerfile` / `.dockerignore`
-- `docker-compose.yml`
-- `deploy.sh`
-- `.github/workflows/ci.yml`, `deploy-staging.yml`, `deploy-production.yml`
-- environment configuration and branch protection
+- `.github/workflows/ci.yml`: `Lint` on PRs, clean `Build` on pushes to
+  `development`/`master`, gated `Deploy production` on `master`.
+- `npm run lint` with ESLint 10 + typescript-eslint.
+- No artifact upload and no `actions/cache`; `dist` is removed before the build and discarded.
 
-Until then, `master` and `development` contain the same planning commit.
+Still pending:
+
+- Real production deployment steps, server secrets, and the `DEPLOY_ENABLED` switch.
+- Staging deployment workflow.
+- `Dockerfile`, `docker-compose.yml`, `deploy.sh`.
+- Automated tests, E2E, and secret scanning.
+
+Branch protection and environment reviewers must be configured in GitHub; the repository
+cannot enforce them. The required PR check is `Lint`.
 
 ## 12. Operational runbooks (to write in Phase 1)
 

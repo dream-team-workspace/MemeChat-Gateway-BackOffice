@@ -26,11 +26,17 @@
 | Method | BFF path | Upstream | Auth | Notes |
 |---|---|---|---|---|
 | GET | `/api/health` | `GET /healthz`, `GET /readyz` | public | Liveness/readiness + console version; no secrets |
-| GET | `/api/auth/login` | IdP | public | Sets state/nonce cookies, redirects |
-| GET | `/api/auth/callback` | IdP | public | Verifies state, allowlist, mints session |
-| POST | `/api/auth/logout` | IdP (optional) | session | Clears cookie, CSRF required |
-| GET | `/api/auth/me` | none | session | Returns operator + environment |
-| GET | `/api/meta` | none | public | App version, commit, environment |
+| GET | `/api/meta` | none | public | App version, commit, environment. No identity. |
+
+Cloudflare Access handles login/logout at the edge; these are **not** BFF routes:
+
+| Method | Edge path | Auth | Notes |
+|---|---|---|---|
+| GET | `/cdn-cgi/access/get-identity` | Access cookie | Verified email/name/idp/iat; 401/opaque redirect means unauthenticated |
+| GET | `/cdn-cgi/access/logout` | Access cookie | Clears the Access session |
+
+The BFF validates `Cf-Access-Jwt-Assertion` on every `/api/admin/*` request; it does not mint
+an app-owned login session.
 
 ### 2.2 Admin resources
 

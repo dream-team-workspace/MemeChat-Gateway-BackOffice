@@ -6,7 +6,8 @@
   implemented on `feature/template`. Read `README.md`, `DESIGN.md`, and `docs/README.md` first.
 - The template includes Cloudflare Access login, responsive sidebar/topbar, pinned Settings,
   theme switching, and dummy Overview/Capabilities/Models/Users/Operations/Settings pages.
-- There is **no BFF, live admin API integration, test suite, CI, or deployment config yet**.
+- There is **no BFF, live admin API integration, or test suite yet**. CI lives in
+  `.github/workflows/ci.yml`: lint on PRs, clean build on pushes, gated deploy placeholder.
   Access identity lives in `src/features/auth/cloudflare-access.ts` and `auth-store.ts`;
   all page data is static. Setup is in `docs/14-cloudflare-access.md`.
 - Do not merge this branch to `development`/`master` until the Phase 1 exit criteria in
@@ -29,12 +30,14 @@ Where docs disagree, the requirement file wins for behavior, `DESIGN.md` for vis
 
 - `npm install` — installs from the committed lockfile.
 - `npm run dev` — Vite dev server on port 5173.
+- `npm run lint` — ESLint; required on PRs to `development`/`master`.
 - `npm run build` — `tsc --noEmit` + production Vite build.
 - `npm run typecheck` — TypeScript only.
 - `npm run preview` — preview the production build.
 
-No lint/test/E2E scripts exist yet. Do not invent feature APIs; the admin routes are not
-implemented in the gateway checkout.
+No test/E2E scripts exist yet. The CI build job intentionally does not upload artifacts or use
+`actions/cache`. Do not invent feature APIs; the admin routes are not implemented in the
+gateway checkout.
 
 ## Current app conventions
 
@@ -51,7 +54,8 @@ implemented in the gateway checkout.
 ## Branch and change policy
 
 - `master` = production deployment branch. Never push directly.
-- `development` = integration/staging branch. Feature PRs target it.
+- `development` = integration branch. Feature PRs target it; pushes currently run a build
+  check only (staging deploy is not wired).
 - Work branches: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`, `hotfix/<slug>`.
 - Conventional Commits, squash merge, one logical change per PR.
 - Never commit secrets, `.env` files, session data, or customer identifiers.

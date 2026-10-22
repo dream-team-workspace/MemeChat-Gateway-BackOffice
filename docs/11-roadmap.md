@@ -40,7 +40,7 @@ Exit criteria:
 
 Goal: a running shell with a real design system, a real BFF skeleton, and a mock contract.
 
-**Implemented on feature/template (2026-10-21):**
+**Implemented on feature/template (2026-10-21, updated 2026-10-22):**
 
 - Vite + React 19 + TypeScript, Tailwind v4, semantic tokens, Open Sans.
 - Code-based TanStack Router with protected routes and async Cloudflare Access session guards.
@@ -51,12 +51,16 @@ Goal: a running shell with a real design system, a real BFF skeleton, and a mock
 - Dummy Overview, Capabilities, Models, Users, Operations, and Settings pages.
 - Light/dark/system theme, persisted with no-flash boot script.
 - Build and typecheck pass; axe clean on core screens; no overflow at 360–1440.
+- ESLint 10 + typescript-eslint; `npm run lint` clean.
+- GitHub Actions CI: lint on PRs, clean build on pushes, gated deploy placeholder on master.
 
 **Still required for Phase 1 exit:**
 
 - BFF skeleton with Access JWT validation, mock API store.
 - Shared Zod schemas and MSW fixtures.
-- ESLint/Prettier, Vitest/Playwright, and CI.
+- Prettier, Vitest/Playwright; CI is wired but not yet exercised on GitHub.
+- Apply the domain refinements in [03-architecture.md](03-architecture.md) §12.2:
+  `dashboard` → `overview`, `shared/admin-api`, capabilities subfeatures, boundary lint.
 - Docker/deploy skeleton.
 
 Deliverables:
@@ -82,8 +86,9 @@ Deliverables:
    - MSW handlers + fixtures for every endpoint.
    - Contract tests.
 6. **CI**
-   - `ci.yml` with lint/typecheck/test/build/e2e.
-   - Branch protection, Dependabot, secret scan.
+   - `ci.yml` with lint on PRs and clean build on pushes. **(done)**
+   - Branch protection, Dependabot, secret scan, E2E. **(pending)**
+   - Production deploy job gated by `DEPLOY_ENABLED`; placeholder until server setup. **(pending)**
 7. **Deploy skeleton (no production)**
    - Dockerfile, compose, deploy script, staging workflow (can deploy a "hello" shell).
 
@@ -92,7 +97,8 @@ Exit criteria:
 - `npm run dev` shows the shell; login/logout works with Cloudflare Access. **(Access flow done; dashboard app/policy pending)**
 - Design review passes light/dark, keyboard, axe. **(core screens done)**
 - Every route renders loading/empty/error states with mock data. **(not yet)**
-- CI is green on a PR to `development`. **(not yet)**
+- CI workflow is present; local lint/build pass. GitHub Actions execution is pending the
+  branch being pushed and a PR being opened. **(workflow added)**
 - No secret in the bundle scan. **(no secrets present; scan not automated yet)**
 
 Demo: navigate the shell, switch theme, sign in/out, open empty pages with consistent states.

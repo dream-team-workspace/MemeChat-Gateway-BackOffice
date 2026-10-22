@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed (Phase 0) |
+| Status | Living architecture; Phase 1 UI implemented; domain refinements proposed 2026-10-22 |
 | Scope | Web console + Backend-for-Frontend (BFF) |
 | Depends on | [Backend contract analysis](02-backend-contract-analysis.md), [DESIGN.md](../DESIGN.md) |
-| Decisions | ADR-0001..0007 |
+| Decisions | ADR-0001..0008 |
 
 ## 1. Architecture in one picture
 
@@ -18,12 +18,12 @@
 │  - shadcn/ui                 │
 └──────────────┬───────────────┘
                │ same-origin HTTPS
-               │ cookie session + CSRF header
+               │ Access cookie + CSRF header
                ▼
 ┌──────────────────────────────┐
 │ BFF (Hono on Node)           │
-│  - Access JWT validation    │
-│  - session cookie            │
+│  - Access JWT validation     │
+│  - no app-owned session      │
 │  - route allowlist           │
 │  - ADMIN_API_SECRET (server) │
 │  - X-Admin-Actor             │
@@ -68,14 +68,14 @@ The gateway's admin API expects:
 Embedding the secret in the SPA, a source map, a service worker, or a build-time `VITE_*`
 variable would hand full admin power to anyone who opens DevTools. A reverse proxy that
 injects a static header has the same problem plus no per-operator identity. The BFF is the
-smallest component that can authenticate a human, keep the secret server-side, attribute
-each mutation, restrict the callable surface, and normalize the contract.
+smallest component that can validate the Access identity, keep the secret server-side,
+attribute each mutation, restrict the callable surface, and normalize the contract.
 
 ## 3. Runtime responsibilities
 
 ### 3.1 Browser SPA
 
-- Render routes and feature UI.
+- Render routes and domain UI.
 - Manage server state with TanStack Query.
 - Validate forms with Zod/RHF.
 - Never read or store the admin secret.
@@ -85,15 +85,15 @@ each mutation, restrict the callable surface, and normalize the contract.
 ### 3.2 BFF
 
 - Serve the built SPA (in production) and `/api/*`.
-- Validate the Cloudflare Access JWT; enforce the Access policy.
-- Issue an HttpOnly, Secure, SameSite=Lax session cookie.
+- Validate the Cloudflare Access JWT on every `/api/*` request; enforce the Access policy.
+- Do not mint an app-owned session cookie; Access owns the `CF_Authorization` cookie.
 - Enforce CSRF (Origin + double-submit token) on non-GET.
 - Enforce a method+path allowlist; no generic proxy.
 - Inject `Authorization` and `X-Admin-Actor`; propagate/generate `X-Request-Id`.
 - Bound body size, timeouts, and retries.
 - Parse upstream responses with shared Zod schemas and normalize casing/pagination.
 - Redact logs; never log bodies, cookies, secrets, or raw UIDs.
-- Rate-limit login and mutations.
+- Rate-limit API reads and mutations.
 
 ### 3.3 Gateway
 
@@ -101,7 +101,149 @@ each mutation, restrict the callable surface, and normalize the contract.
 - Is the source of truth for money and routing.
 - May be unavailable or contract-incomplete; the BFF must surface that honestly.
 
+### 3.4 Domain model (backend-aligned)
+
+The console is organized around **admin resources and operator jobs**, not the gateway's Go
+packages or individual capability kinds.
+
+| Gateway/admin surface | Console domain | Subfeatures / routes |
+|---|---|---|
+| `capabilities`, `capability_providers`, `capability_audit` | `features/capabilities` | registry, configuration, routing, audit |
+| `models` | `features/models` | catalog list, model editor |
+| `account`, `credit_ledger`, `usage_events`, credit grant | `features/users` | lookup, ledger, usage, grant |
+| cache invalidation, health, future jobs | `features/operations` | health, cache, jobs |
+| No direct backend endpoint | `features/overview` | composition of other domains |
+| Browser preference only | `features/settings` | appearance, session |
+| Cloudflare Access | `platform/auth` | login, identity, logout |
+| `chat`, `tts`, `stt`, `embeddings` | **not a frontend feature** | capability rows / kinds rendered by the registry UI |
+
+Rules:
+
+1. **One domain per admin resource group or operator journey.** The target is six product
+   domains plus platform auth; do not create a domain per endpoint.
+2. **A capability kind is data, not a feature.** New kinds must render through the existing
+   registry/form renderer. Creating `features/chat`, `features/tts`, or
+   `features/embeddings` multiplies UI and defeats the dynamic registry.
+3. **Provider routing and audit stay inside capabilities.** They are part of the same
+   aggregate and the admin API exposes them under `/capabilities/{id}`. Promote audit to a
+   domain only if the backend adds a global audit feed.
+4. **Ledger, usage, and grants stay inside users.** They share the UID lookup journey and the
+   `/users/{uid}` resource group.
+5. **Jobs live under operations but use a separate BFF boundary.** The UI can share the domain;
+   the server must not mix `ADMIN_API_SECRET` and `INTERNAL_API_SECRET`.
+6. **Overview is composition-only.** It may consume public summary hooks from capabilities and
+   models; it must not define duplicate query keys or a second source of truth.
+7. **Auth is platform infrastructure, not a product domain.** The current
+   `features/auth` folder is acceptable while it is small; move it to `platform/auth` when
+   the BFF and Access validation land.
+
+A useful scale test: adding a new capability kind or provider should require **zero new
+top-level domains**. Adding a global audit feed, user directory, or aggregate stats endpoint
+would justify promoting a subfeature to a domain.
+
 ## 4. Repository layout (target)
+
+~~~text
+.
+├─ src/
+│  ├─ app/
+│  │  ├─ router.tsx                   # route tree assembly
+│  │  ├─ routes/                      # thin route declarations, split by domain
+│  │  ├─ layouts/                     # shell, auth, route error
+│  │  ├─ guards/                      # session/authorization
+│  │  └─ providers/                   # QueryClient, theme, toasts
+│  ├─ features/                       # product domains
+│  │  ├─ overview/                    # composition only
+│  │  │  ├─ components/
+│  │  │  ├─ page.tsx
+│  │  │  └─ index.ts
+│  │  ├─ capabilities/
+│  │  │  ├─ api/
+│  │  │  ├─ queries/
+│  │  │  ├─ mutations/
+│  │  │  ├─ components/
+│  │  │  │  ├─ registry/
+│  │  │  │  ├─ routing/
+│  │  │  │  └─ audit/
+│  │  │  ├─ forms/
+│  │  │  ├─ pages/
+│  │  │  └─ index.ts
+│  │  ├─ models/
+│  │  │  ├─ api/
+│  │  │  ├─ components/
+│  │  │  ├─ pages/
+│  │  │  └─ index.ts
+│  │  ├─ users/
+│  │  │  ├─ api/
+│  │  │  ├─ components/
+│  │  │  │  ├─ lookup/
+│  │  │  │  ├─ ledger/
+│  │  │  │  ├─ usage/
+│  │  │  │  └─ grant/
+│  │  │  ├─ pages/
+│  │  │  └─ index.ts
+│  │  ├─ operations/
+│  │  │  ├─ components/
+│  │  │  │  ├─ health/
+│  │  │  │  ├─ cache/
+│  │  │  │  └─ jobs/                  # future; separate BFF secret
+│  │  │  └─ index.ts
+│  │  └─ settings/
+│  ├─ platform/                       # cross-domain infrastructure
+│  │  ├─ auth/                        # Access identity, dev identity, logout
+│  │  ├─ api/                         # typed fetch client, errors, request IDs
+│  │  └─ config/
+│  ├─ components/
+│  │  ├─ ui/                          # shadcn-owned primitives
+│  │  ├─ common/                      # PageHeader, DataTable, ConfirmDialog...
+│  │  └─ layout/                      # Sidebar, Topbar, EnvironmentBadge
+│  ├─ lib/                            # formatters, cn, pure utilities
+│  ├─ styles/globals.css
+│  └─ main.tsx
+├─ shared/
+│  └─ admin-api/                      # runtime-agnostic contract (no React/DOM/Node)
+│     ├─ common.ts                    # error envelope, pagination
+│     ├─ capabilities.ts
+│     ├─ models.ts
+│     └─ users.ts
+├─ server/
+│  ├─ src/
+│  │  ├─ index.ts
+│  │  ├─ app.ts
+│  │  ├─ config.ts
+│  │  ├─ auth/                        # Access JWT, session, middleware
+│  │  ├─ routes/                      # capabilities, models, users, operations
+│  │  ├─ gateway/
+│  │  │  ├─ client.ts
+│  │  │  ├─ allowlist.ts
+│  │  │  ├─ errors.ts
+│  │  │  └─ mappers/                  # capabilities, models, users
+│  │  └─ lib/                         # csrf, rate-limit, logger, redact
+│  └─ tsconfig.json
+├─ tests/
+│  ├─ e2e/
+│  ├─ fixtures/
+│  └─ setup/
+├─ public/
+├─ docs/
+├─ scripts/
+├─ components.json
+├─ vite.config.ts
+├─ tsconfig.json / tsconfig.app.json / tsconfig.node.json / tsconfig.server.json
+├─ eslint.config.js
+├─ playwright.config.ts
+├─ vitest.config.ts
+└─ package.json
+~~~
+
+**Current vs target:** the current code is a subset of this tree. `features/dashboard` still
+exists and should become `features/overview`; `features/auth` still holds the Access code;
+`features/capabilities` has not yet split into `registry/routing/audit` subfolders; and
+`shared/`, `server/`, and `platform/` are target layers. Do not perform the whole
+restructure before the BFF exists; apply the renames and subfolders as the relevant features
+land.
+
+
 
 ~~~text
 .
@@ -204,68 +346,70 @@ and deploy as one container. If the team later needs independent scaling, the `s
 ### 5.1 App layer (`src/app`)
 
 Owns bootstrapping only: providers, router creation, global error handling, and the app
-shell. It may import features' public entry points. It contains no business logic.
+shell. It may import domains' public entry points. It contains no business logic.
 
-### 5.2 Route layer (`src/routes`)
+### 5.2 Route layer (`src/app/routes`)
 
-Thin adapters between URLs and feature pages:
+Thin adapters between URLs and domain pages:
 
 - parse/validate search params
 - call `ensureSession` / permission guards
 - set document title and breadcrumbs
-- render a feature page inside `AppShell`
+- render a domain page inside `AppShell`
 - declare route-level pending/error components
 
 Routes do not fetch directly, map API data, or contain forms.
 
-### 5.3 Feature layer (`src/features/<name>`)
+### 5.3 Domain layer (`src/features/<domain>`)
 
-A vertical slice with a **public API** (`index.ts`) and private internals:
+A domain is a vertical slice with a **public API** (`index.ts`) and private internals.
+Subfeatures are folders inside the domain, not separate top-level domains.
 
 ~~~text
 features/capabilities/
-├─ api/
-│  ├─ capabilities.api.ts       # BFF calls, Zod parse
-│  ├─ capabilities.queries.ts   # query options + keys
-│  └─ capabilities.mutations.ts # mutation options + invalidation
+├─ api/                         # BFF calls, Zod parse
+├─ queries/                     # query options + keys
+├─ mutations/                   # mutation options + invalidation
 ├─ components/
-│  ├─ capability-table.tsx
-│  ├─ capability-form.tsx
-│  ├─ provider-chain-editor.tsx
-│  ├─ kill-switch-dialog.tsx
-│  └─ audit-diff.tsx
-├─ hooks/
-│  └─ use-capability-filters.ts
+│  ├─ registry/                 # list, summary, detail shell
+│  ├─ routing/                  # provider chain editor
+│  └─ audit/                    # audit table/diff
+├─ forms/                       # capability + routing form schemas
 ├─ pages/
 │  ├─ capabilities-page.tsx
 │  ├─ capability-detail-page.tsx
 │  └─ capability-audit-page.tsx
-├─ lib/
-│  └─ capability-form-schema.ts
-├─ types.ts
-├─ index.ts                     # only pages/components intended for routes
+├─ index.ts                     # pages + deliberate public hooks
 └─ __tests__/
 ~~~
 
-Rules:
+Domain rules:
 
-- Everything inside the feature is private except what `index.ts` exports.
-- One feature may not import another feature's internals. Shared behavior moves to
-  `components/common` or `shared/`.
-- Feature API modules are the only place that call `fetch`/the typed client.
-- Feature components do not know about query keys or cache invalidation; hooks/api do.
-- A feature may be deleted by deleting its folder and its route files, with no orphaned
-  imports elsewhere (except nav registration).
+- Everything inside the domain is private except what `index.ts` exports.
+- Only the **domain** has a public entry point. `components/routing` and
+  `components/audit` are subfeatures, not separately importable packages.
+- A domain may not import another domain's internals. Shared behavior moves to
+  `components/common` or `shared/admin-api`.
+- A domain API module is the only place that calls the typed client.
+- Domain components do not know query keys or cache invalidation; query/mutation modules do.
+- `features/overview` is the only composition domain and may import **public summary hooks**
+  from capabilities/models. Other domains may not import each other.
+- Do not create a domain per endpoint or per capability kind. Add a subfeature until the
+  backend exposes a global resource with its own nav, route, and ownership.
+- The current flat `features/capabilities` is the starting point; create
+  `registry/`, `routing/`, and `audit/` as those workflows are built.
 
 ### 5.4 Shared layer
 
 | Location | Allowed contents | Forbidden |
 |---|---|---|
-| `components/ui` | shadcn primitives, local patches | Feature logic, API calls |
-| `components/common` | PageHeader, DataTable, ConfirmDialog, EmptyState, ErrorState, StatusBadge, JsonViewer, CopyButton, DiffView | Feature-specific labels/data |
-| `components/layout` | Sidebar, Topbar, EnvironmentBadge, UserMenu | Feature forms |
-| `lib` | fetch client, formatters, env, cn | React components |
-| `shared` | Zod schemas, types, endpoint constants, error codes | React, DOM, Node APIs |
+| `components/ui` | shadcn primitives, local patches | Domain logic, API calls |
+| `components/common` | PageHeader, DataTable, ConfirmDialog, EmptyState, ErrorState, StatusBadge, JsonViewer, CopyButton, DiffView | Domain-specific labels/data |
+| `components/layout` | Sidebar, Topbar, EnvironmentBadge, UserMenu | Domain forms |
+| `lib` | formatters, env, cn, pure utilities | React components, domain state |
+| `platform/api` | typed fetch client, API errors, request IDs | Domain-specific UI |
+| `platform/auth` | Access identity, dev identity, logout | Product-domain rules |
+| `shared/admin-api` | Zod schemas, types, endpoint constants, error codes | React, DOM, Node APIs |
 
 `shared/` is the contract seam. It must be importable by both Vite and Node, so it may not
 import `react`, `server/`, or `src/`.
@@ -273,21 +417,23 @@ import `react`, `server/`, or `src/`.
 ### 5.5 Dependency direction
 
 ~~~text
-routes ──► features ──► components/common ──► components/ui
-  │            │               │
-  │            └──────────────► lib
-  └───────────────────────────► app
+app/routes ──► domains (public index) ──► components/common ──► components/ui
+    │                 │
+    │                 ├──► platform/api ──► BFF
+    │                 ├──► shared/admin-api
+    │                 └──► lib
+    └──► platform/auth
 
-features ──► shared
-server   ──► shared
-src      ──► shared
+overview ──► capabilities/models (public summary hooks only)
+domain A ──✕──► domain B (internals)
+platform ──✕──► domains
+shared   ──✕──► React / DOM / Node
 src      ──✕──► server
 server   ──✕──► src
-feature A ──✕──► feature B (internals)
 ~~~
 
-Enforced with ESLint `boundaries` rules and a CI check. A violation is a build failure, not
-a review comment.
+Enforced with ESLint `boundaries` rules and a CI check once the BFF/domain split lands. A
+violation is a build failure, not a review comment.
 
 ## 6. BFF design
 
@@ -295,10 +441,8 @@ a review comment.
 
 ~~~text
 GET    /api/health
-GET    /api/auth/login
-GET    /api/auth/callback
-POST   /api/auth/logout
-GET    /api/auth/me
+GET    /api/meta
+# Access login/logout/get-identity are edge routes, not BFF routes.
 
 GET    /api/admin/capabilities
 GET    /api/admin/capabilities/:id
@@ -316,6 +460,11 @@ POST   /api/admin/users/:uid/credits/grant
 
 There is intentionally **no** `/api/admin/*` catch-all. Each route is registered explicitly
 with its method, a Zod body/query schema, and a mapped upstream call.
+
+The BFF source mirrors the same domains: `server/src/routes/{capabilities,models,users,operations}.ts`
+and `server/src/gateway/mappers/{capabilities,models,users}.ts`. Access JWT verification lives
+in `server/src/auth/`, not in a route module. Avoid a single `admin.ts` monolith; it becomes
+the new layer-first bottleneck as the API grows.
 
 ### 6.2 Session model
 
@@ -340,7 +489,7 @@ Request
   → request ID
   → security headers
   → origin check (non-GET)
-  → session parse
+  → Access JWT validation (issuer, audience, JWKS, expiry)
   → CSRF check (non-GET)
   → rate limit
   → route schema validation
@@ -368,11 +517,11 @@ public; the Node port is bound to localhost.
 
 ### 7.1 Read path
 
-1. Route loads; `beforeLoad` ensures a session.
-2. Feature page calls a query hook.
-3. Query calls feature `api` module.
+1. Route loads; `beforeLoad` ensures a Cloudflare Access identity.
+2. Domain page calls a query hook.
+3. Query calls the domain `api` module.
 4. API module calls the typed client (`/api/...`).
-5. BFF validates the session and forwards to the gateway with server credentials.
+5. BFF validates the Access JWT and forwards to the gateway with server credentials.
 6. BFF parses/normalizes the upstream response with the shared Zod schema.
 7. Browser parses the BFF response with the same schema (defense in depth).
 8. Query caches by key; table renders loading/empty/error/data.
@@ -411,15 +560,35 @@ retry initiated by the user.
 | Form state | React Hook Form + Zod | capability edit, model edit, grant |
 | Ephemeral UI | `useState`/`useReducer` | dialog open, selected row, copy state |
 | Cross-cutting UI prefs | Zustand + persist | theme, sidebar collapsed |
-| Auth | Query + router context | session, redirect target |
+| Access identity | Query + router context | session, environment, redirect target |
 
 No Redux. No global store for server data. No duplicated derived state that can drift.
 
 ## 9. Routing and code splitting
 
-- TanStack Router file-based routes; route files are thin.
-- Every feature page is lazy-loaded at the route boundary.
-- The shell, auth guard, and shared UI are in the initial bundle.
+The route tree follows the operator domains and uses real URLs for tabs:
+
+~~~text
+/login
+/
+/capabilities
+/capabilities/:capabilityId
+/capabilities/:capabilityId/routing
+/capabilities/:capabilityId/audit
+/models
+/users
+/users/:uid/ledger
+/users/:uid/usage
+/operations
+/settings
+~~~
+
+- Use nested routes instead of local tab state so deep links, refresh, breadcrumbs, and
+  code-splitting work. A tab that cannot be linked is a hidden feature.
+- TanStack Router is code-based today; split route declarations by domain as the route count
+  grows. File-based routing is optional, not a requirement.
+- Every domain page is lazy-loaded at the route boundary.
+- The shell, Access guard, and shared UI are in the initial bundle.
 - Search params are validated; invalid filters fall back to defaults and are replaced in the
   URL (no crash).
 - Route context carries `session`, `environment`, and `queryClient`.
@@ -431,7 +600,7 @@ No Redux. No global store for server data. No duplicated derived state that can 
 - React error boundary at the root and per route.
 - Query errors are rendered as `ErrorState` with retry, not thrown to the boundary, except
   contract mismatches (which are bugs).
-- A failed session check redirects to login with a safe `returnTo`.
+- A failed Access identity check redirects to `/login`.
 - A 403 renders the forbidden page, not a generic error.
 - An upstream 5xx shows "Gateway unavailable" with request ID and retry; it does not log the
   user out.
@@ -452,19 +621,68 @@ No Redux. No global store for server data. No duplicated derived state that can 
 Production builds must fail if `ADMIN_API_SECRET` or any unexpected secret appears in
 `dist/` (grep + bundle scan). Access identity is edge-provided.
 
-## 12. Scaling the feature set
+## 12. Scaling the domain set
 
-Adding a feature is a repeatable six-step change:
+Adding an operator workflow is a repeatable change:
 
-1. Write/update the requirement file and acceptance criteria.
+1. Write/update the requirement and acceptance criteria.
 2. Add shared Zod schemas/types for any new payload.
 3. Add the explicit BFF route + mapper (if a new endpoint).
-4. Create `src/features/<name>/` with api, components, pages, index.
-5. Add thin route files, nav entry, and route tests.
-6. Add MSW fixtures, unit/integration/E2E coverage, and screenshots.
+4. Decide whether it belongs to an existing domain or justifies a new one.
+5. Add the nested route(s), nav entry, and a thin route declaration.
+6. Add fixtures, unit/integration/E2E coverage, and screenshots.
 
-If step 3 is impossible because the backend route does not exist, the feature stays mock-only
-and is marked **blocked** in the roadmap. It does not invent a client-side endpoint.
+A new domain is justified only when the backend exposes a **new global resource** with its own
+route, navigation entry, and ownership. An endpoint or a capability kind is not enough. If the
+backend route does not exist, the UI stays mock-only and is marked blocked; it does not invent
+a client-side endpoint.
+
+### 12.1 Domain vs subfeature
+
+| Change | Where it goes |
+|---|---|
+| New capability kind (`chat`, `tts`, `stt`, `embeddings`, future kind) | No new domain. Add a field renderer/help entry in `features/capabilities/forms` and let the registry drive it. |
+| New provider or model in a capability chain | `features/capabilities/components/routing`; no new domain. |
+| New provider/model catalog behavior | `features/models`. |
+| Ledger/usage/grant addition | `features/users` subfeature. |
+| Cache invalidation, health, ops job | `features/operations`; jobs use a separate BFF secret. |
+| Global audit feed | Promote `capabilities/audit` to `features/audit` if the backend adds a global route. |
+| User directory/search | Upgrade `features/users` from lookup to directory; keep the same domain. |
+| Aggregate stats | Add a stats query to `features/overview` only when a real endpoint exists. |
+
+### 12.2 What to change now
+
+These are low-risk structural changes; do them before the next feature wave:
+
+1. Rename `features/dashboard` to `features/overview` and keep the route `/`. “Dashboard”
+   implies metrics the backend does not expose.
+2. Create `shared/admin-api` now, before the BFF. One contract file per resource, not one
+   schema dump.
+3. When routing and audit are built, add `components/routing` and `components/audit` inside
+   `features/capabilities`. Do not create top-level domains for them yet.
+4. Keep `features/users` as the user-facing name; use `ledger`, `usage`, and `grant`
+   subfolders internally.
+5. Add `server/src/routes/<domain>.ts` and `gateway/mappers/<resource>.ts` when the BFF lands.
+6. Add `eslint-plugin-boundaries` before the number of domains grows.
+7. Convert capability/user tabs to nested routes as each tab gets deep-linkable.
+
+Do not perform the entire target tree refactor in one commit before the BFF exists. Apply the
+renames and subfolders as the relevant feature lands.
+
+### 12.3 Anti-patterns
+
+- A feature per capability kind (`features/chat`, `features/tts`, …).
+- A feature per endpoint.
+- A global `services/` or `hooks/` dumping ground.
+- Separate top-level domains for providers and audit before a global backend resource exists.
+- Duplicate query keys in overview.
+- Treating `settings` as a backend domain.
+- Hiding the shared-secret boundary behind a generic browser proxy.
+
+The scale test: **adding a capability kind or provider should require zero new domains; adding
+a truly global backend resource may add one.**
+
+
 
 ## 13. Testing seams
 
@@ -472,7 +690,7 @@ and is marked **blocked** in the roadmap. It does not invent a client-side endpo
 - **Hono `app.request`** tests the BFF without a network.
 - **Playwright** runs the real BFF in mock mode or against staging.
 - **Shared schemas** are the contract test surface: every fixture and real response is parsed.
-- **Feature public API** is the unit boundary; internal components can still be tested
+- **Domain public API** is the unit boundary; internal components can still be tested
   directly.
 
 See [09-testing-strategy.md](09-testing-strategy.md).
@@ -499,3 +717,4 @@ See [09-testing-strategy.md](09-testing-strategy.md).
 - [ADR-0005](adr/0005-tanstack-query-router-table.md) — routing/server state/table.
 - [ADR-0006](adr/0006-branching-and-deployments.md) — branches and environments.
 - [ADR-0007](adr/0007-mock-first-contract.md) — mock-first integration.
+- [ADR-0008](adr/0008-cloudflare-access-auth.md) — Cloudflare Access identity.

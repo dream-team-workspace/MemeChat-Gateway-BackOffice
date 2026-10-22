@@ -6,8 +6,8 @@ routing, kill switches, model catalog, user ledger/usage, and credit grants.
 
 > **Status: Phase 1 — UI template with Cloudflare Access login.** The console runs locally
 > with a responsive shell, real Access identity when deployed behind Zero Trust, theme
-> switching, and dummy page content. The BFF, real admin API, test suite, and deployment
-> workflows are not wired yet. Nothing is deployed.
+> switching, and dummy page content. CI runs lint on PRs and a clean build on pushes; the
+> BFF, real admin API, test suite, and production deployment are not wired yet.
 
 - **Remote:** [dream-team-workspace/MemeChat-Gateway-BackOffice](https://github.com/dream-team-workspace/MemeChat-Gateway-BackOffice)
 - **Gateway backend:** [MemeChat-Gateway](https://github.com/dream-team-workspace/MemeChat-Gateway) (source of truth for the admin API)
@@ -58,6 +58,7 @@ Local `npm run dev` uses `VITE_DEV_AUTH_EMAIL` because Access is not in front of
 ~~~bash
 npm install
 npm run dev          # Vite on http://localhost:5173
+npm run lint         # ESLint (CI check on pull requests)
 npm run build        # typecheck + production build
 npm run typecheck    # TypeScript only
 npm run preview      # preview the production build
@@ -74,10 +75,30 @@ in [docs/14-cloudflare-access.md](docs/14-cloudflare-access.md).
 - Hono BFF that validates `Cf-Access-Jwt-Assertion`, enforces CSRF, and sets
   `X-Admin-Actor` from the Access identity.
 - TanStack Query/Table + React Hook Form/Zod for the real admin contract.
-- MSW fixtures, Vitest, Playwright, and CI.
+- MSW fixtures, Vitest, and Playwright.
 - Docker + staging/production deployment.
 
 See [docs/11-roadmap.md](docs/11-roadmap.md) and
+[docs/10-ci-cd-and-environments.md](docs/10-ci-cd-and-environments.md).
+
+---
+
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) implements the first CI slice:
+
+| Trigger | What runs |
+|---|---|
+| Pull request → `development` or `master` | `Lint` (`npm run lint`) |
+| Push → `development` | `Build` (`rm -rf dist` + `npm ci` + `npm run build`) |
+| Push → `master` | `Build`, then gated `Deploy production` |
+
+The build job deliberately does **not** upload artifacts or use `actions/cache`; it only
+fails the workflow if the production build fails. The production deploy job is skipped until
+the repository variable `DEPLOY_ENABLED` is set to `true`; its step is still a placeholder
+and deployment setup is pending.
+
+The required status check for PRs is **`Lint`**. See
 [docs/10-ci-cd-and-environments.md](docs/10-ci-cd-and-environments.md).
 
 ---
@@ -86,8 +107,8 @@ See [docs/11-roadmap.md](docs/11-roadmap.md) and
 
 | Branch | Purpose | Deploys to | Who merges |
 |---|---|---|---|
-| `master` | Production / deployment base. Protected. | Production server | Release PR from `development` only |
-| `development` | Integration and staging. Protected. | Staging server | Feature/fix/chore PRs |
+| `master` | Production / deployment base. Protected. | Gated production deploy (pending setup) | Release PR from `development` only |
+| `development` | Integration branch. Protected. | Build check only (staging deploy later) | Feature/fix/chore PRs |
 | `feature/*`, `fix/*`, `chore/*` | Short-lived work branches | — | Opened as PRs into `development` |
 | `hotfix/*` | Urgent production fix, branched from `master` | Production after PR | PR into `master`, then back-merge into `development` |
 
@@ -147,7 +168,8 @@ The non-negotiable security rule remains: **the browser never receives
 ## Current repository state
 
 - UI template implemented on `feature/template`.
-- No BFF, live admin API integration, test suite, CI, or deployment configuration yet.
+- CI is implemented for lint/build; the deployment step is intentionally gated and not set up.
+- No BFF, live admin API integration, or automated test suite yet.
 - The original bare TypeScript scaffold was replaced by the Vite app; `src/index.ts` no
   longer exists.
 - Treat dummy page data as template-only. Access login is real when the hostname is behind

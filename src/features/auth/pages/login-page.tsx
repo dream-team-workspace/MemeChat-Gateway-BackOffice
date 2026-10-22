@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { signIn } from "@/features/auth/auth-store";
 
 export function LoginPage() {
+  const isDevelopment = import.meta.env.DEV;
+
   return (
     <div className="relative grid min-h-dvh bg-background lg:grid-cols-[1.05fr_1fr]">
       <aside className="relative hidden overflow-hidden border-r border-brand-panel-border bg-brand-panel p-12 text-brand-panel-foreground lg:flex lg:flex-col lg:justify-between">
@@ -105,9 +107,9 @@ export function LoginPage() {
                 Operator sign-in
               </h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Cloudflare Access verifies your workspace identity before this
-                console loads. This app never stores a password or an identity
-                token.
+                {isDevelopment
+                  ? "Local development uses a stand-in operator identity. Cloudflare Access is only in front of the deployed hostname."
+                  : "Cloudflare Access verifies your workspace identity before this console loads. This app never stores a password or an identity token."}
               </p>
             </div>
 
@@ -122,8 +124,9 @@ export function LoginPage() {
             </Button>
 
             <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">
-              You will be redirected to your organization&apos;s Access login if
-              your session is missing or expired.
+              {isDevelopment
+                ? "Development mode signs you in locally; a full reload re-establishes the development identity."
+                : "You will be redirected to your organization's Access login if your session is missing or expired."}
             </p>
 
             <p className="mt-8 text-center text-[11px] leading-5 text-muted-foreground">

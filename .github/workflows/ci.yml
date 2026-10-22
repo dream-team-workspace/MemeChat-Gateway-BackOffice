@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - development
+      - master
+  push:
+    branches:
+      - development
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: Lint
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  build:
+    name: Build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Clear previous build output
+        run: rm -rf dist
+
+      # Intentionally no actions/cache and no upload-artifact. This job only
+      # verifies that the production build succeeds.
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy production
+    needs: build
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master' &&
+      vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://console.dream-team.works
+    steps:
+      # Deployment is intentionally gated off until the server setup lands.
+      # Replace this placeholder with the real SSH/rsync or image-push steps,
+      # add the required environment secrets, then set the repository variable
+      # DEPLOY_ENABLED=true.
+      - name: Deployment placeholder
+        run: |
+          echo "::error::Deployment is not configured yet."
+          echo "Replace this placeholder with the real deploy steps before enabling DEPLOY_ENABLED."
+          exit 1

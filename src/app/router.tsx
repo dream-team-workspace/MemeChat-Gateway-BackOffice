@@ -26,6 +26,10 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   beforeLoad: async () => {
+    // Production: Access already authenticated the visitor, so skip the
+    // fallback page. Development has no Access in front of localhost; keep
+    // /login reachable so sign-out and the Access fallback can be reviewed.
+    if (import.meta.env.DEV) return;
     if (await ensureSession()) throw redirect({ to: "/" });
   },
   component: LoginPage,

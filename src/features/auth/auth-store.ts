@@ -60,7 +60,7 @@ function subscribe(listener: () => void) {
 }
 
 function initialsFor(name: string, email: string) {
-  const parts = name.trim().split(/[s._-]+/).filter(Boolean);
+  const parts = name.trim().split(/[\s._-]+/).filter(Boolean);
   const fromName =
     parts.length > 1
       ? parts
