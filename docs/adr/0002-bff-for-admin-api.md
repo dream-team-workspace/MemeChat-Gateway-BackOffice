@@ -1,6 +1,6 @@
 # ADR-0002 — BFF owns the admin secret and operator identity
 
-- **Status:** Proposed
+- **Status:** Proposed (authentication portion superseded by [ADR-0008](0008-cloudflare-access-auth.md); BFF decision remains)
 - **Date:** 2026-10-21
 - **Deciders:** Frontend/backend/security
 
@@ -15,7 +15,7 @@ expose the secret or require a static header injection with no per-operator iden
 
 Add a **Backend-for-Frontend** (Hono on Node) that:
 
-- authenticates operators with OIDC and an allowlist,
+- authenticates operators via Cloudflare Access (validating the Access JWT and its allowlist policy),
 - keeps `ADMIN_API_SECRET` server-side,
 - exposes only explicit, schema-validated routes,
 - injects the secret and `X-Admin-Actor`,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, CheckCircle2, Database, RefreshCw, Server, ShieldCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
+import { useSession } from "@/features/auth/auth-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,8 @@ function timeLabel() {
 }
 
 export function OperationsPage() {
+  const session = useSession();
+  const authMode = session?.provider === "development" ? "Development" : "Cloudflare Access";
   const [invalidatedAt, setInvalidatedAt] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState("just now");
 
@@ -133,7 +136,7 @@ export function OperationsPage() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">Auth mode</span>
-              <span className="font-medium">Mock session</span>
+              <span className="font-medium">{authMode}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">Last checked</span>

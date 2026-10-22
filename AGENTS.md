@@ -2,12 +2,13 @@
 
 ## Repo status
 
-- **Phase 1 — UI template (mock auth).** The Vite/React console is implemented on
-  `feature/template`. Read `README.md`, `DESIGN.md`, and `docs/README.md` first.
-- The template includes login, responsive sidebar/topbar, pinned Settings, theme switching,
-  and dummy Overview/Capabilities/Models/Users/Operations/Settings pages.
+- **Phase 1 — UI template with Cloudflare Access login.** The Vite/React console is
+  implemented on `feature/template`. Read `README.md`, `DESIGN.md`, and `docs/README.md` first.
+- The template includes Cloudflare Access login, responsive sidebar/topbar, pinned Settings,
+  theme switching, and dummy Overview/Capabilities/Models/Users/Operations/Settings pages.
 - There is **no BFF, live admin API integration, test suite, CI, or deployment config yet**.
-  Mock auth lives in `src/features/auth/auth-store.ts`; all page data is static.
+  Access identity lives in `src/features/auth/cloudflare-access.ts` and `auth-store.ts`;
+  all page data is static. Setup is in `docs/14-cloudflare-access.md`.
 - Do not merge this branch to `development`/`master` until the Phase 1 exit criteria in
   `docs/11-roadmap.md` are met.
 
@@ -19,6 +20,7 @@
 4. `docs/02-backend-contract-analysis.md` — what the gateway actually exposes.
 5. `docs/06-api-integration.md` — canonical BFF payloads and error handling.
 6. `docs/10-ci-cd-and-environments.md` — branch and deployment policy.
+7. `docs/14-cloudflare-access.md` — Cloudflare Access/Tunnel setup and identity model.
 
 Where docs disagree, the requirement file wins for behavior, `DESIGN.md` for visuals, and
 `docs/03-architecture.md` for structure. Fix the docs in the same PR.
@@ -41,7 +43,9 @@ implemented in the gateway checkout.
   `src/components/common` and `src/components/layout`.
 - Feature slices live in `src/features/<name>`; routes are thin and assembled in
   `src/app/router.tsx`.
-- Mock auth/session is explicit; never add a secret or a real admin call to the browser.
+- Authentication is Cloudflare Access at the edge. Never add an app-owned OIDC flow, a
+  session token, a secret, or a real admin call to the browser. Local `import.meta.env.DEV`
+  may use `VITE_DEV_AUTH_EMAIL`; production builds must always use Access.
 - Every new page needs loading/empty/error states before it is considered done.
 
 ## Branch and change policy
@@ -56,7 +60,7 @@ implemented in the gateway checkout.
 
 - This repo is the **web console + BFF** only. The Go gateway lives in another repository;
   do not implement gateway behavior here.
-- The browser must never receive `ADMIN_API_SECRET`, `INTERNAL_API_SECRET`, OIDC client
+- The browser must never receive `ADMIN_API_SECRET`, `INTERNAL_API_SECRET`, Access validation
   secrets, or raw session tokens.
 - Do not invent admin API endpoints, response fields, or metrics. If the contract is
   missing, add it to `docs/12-risks-and-open-questions.md` and mock it explicitly.

@@ -100,7 +100,7 @@ These are blockers or assumptions, not implementation details.
 | G10 | Provider adapter names are server-side | UI cannot offer a definitive enum | Free text + suggestions from existing chains; helper text |
 | G11 | `PUT` upsert semantics (partial vs full) unspecified | Accidental field reset | Send full representation; preserve unknown fields; confirm |
 | G12 | Toggle has no optimistic-concurrency token | Race with another operator | Refetch after; show revision/updated time; no blind overwrite |
-| G13 | `ADMIN_API_SECRET` is all-or-nothing | No least privilege / per-operator scopes | BFF OIDC + allowlist; request scoped tokens/RBAC later |
+| G13 | `ADMIN_API_SECRET` is all-or-nothing | No least privilege / per-operator scopes | BFF Access JWT + policy; request scoped tokens/RBAC later |
 | G14 | Admin API may be publicly reachable | Secret + network exposure | TLS, firewall allowlist BFF→gateway, rotate secret |
 | G15 | No CORS policy for admin routes | Browser direct calls impossible/unsafe | BFF same-origin; never expose admin API to browser |
 | G16 | Error envelope for admin routes not explicitly stated | Inconsistent client errors | Assume same `{code,message,requestId,details}`; BFF normalizes |
@@ -117,7 +117,7 @@ already returns camelCase, the adapter is a pass-through with validation.
 | BFF → gateway | `Authorization: Bearer <ADMIN_API_SECRET>` | Server only |
 | BFF → gateway | `X-Admin-Actor: <session.email>` | Every mutating request |
 | BFF → gateway | `X-Request-Id: <uuid>` | Generated or propagated |
-| Browser → BFF | `Cookie: __Host-bo_session=...` | HttpOnly, Secure, SameSite=Lax |
+| Browser → BFF | `Cookie: CF_Authorization=...` | Cloudflare Access cookie; HttpOnly, Secure |
 | Browser → BFF | `X-CSRF-Token` | Required on non-GET |
 | Browser → BFF | `Origin` | Validated against `APP_ORIGIN` |
 

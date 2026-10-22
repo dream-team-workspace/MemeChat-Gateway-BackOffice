@@ -4,9 +4,10 @@ Internal operator console for the **MemeChat AI Gateway**. It gives the team a s
 auditable UI over the gateway's backend-management API: capability registry, provider
 routing, kill switches, model catalog, user ledger/usage, and credit grants.
 
-> **Status: Phase 1 — UI template (mock auth).** The console runs locally with a responsive
-> shell, login, theme switching, and dummy page content. The BFF, real admin API, test suite,
-> and deployment workflows are not wired yet. Nothing is deployed.
+> **Status: Phase 1 — UI template with Cloudflare Access login.** The console runs locally
+> with a responsive shell, real Access identity when deployed behind Zero Trust, theme
+> switching, and dummy page content. The BFF, real admin API, test suite, and deployment
+> workflows are not wired yet. Nothing is deployed.
 
 - **Remote:** [dream-team-workspace/MemeChat-Gateway-BackOffice](https://github.com/dream-team-workspace/MemeChat-Gateway-BackOffice)
 - **Gateway backend:** [MemeChat-Gateway](https://github.com/dream-team-workspace/MemeChat-Gateway) (source of truth for the admin API)
@@ -17,8 +18,9 @@ routing, kill switches, model catalog, user ledger/usage, and credit grants.
 
 ## What is implemented
 
-- **Login** — split brand/operator panel on desktop, compact form on mobile, GitHub/Google
-  provider buttons, demo mode, theme toggle.
+- **Login** — split brand/operator panel on desktop, compact form on mobile. Cloudflare
+  Access handles SSO/MFA and the session; the console reads the verified operator from
+  `/cdn-cgi/access/get-identity` and signs out through `/cdn-cgi/access/logout`.
 - **Responsive app shell** — fixed sidebar on desktop, off-canvas drawer with focus trap on
   mobile, sticky top bar, skip link, environment badge.
 - **Left-bottom settings** — Settings is pinned in the sidebar footer above the environment
@@ -45,8 +47,9 @@ routing, kill switches, model catalog, user ledger/usage, and credit grants.
 | `/operations` | Health, registry cache, environment |
 | `/settings` | Appearance, account, environment |
 
-Protected routes redirect to `/login` until the mock session exists. The mock session is
-stored in `localStorage` under `bo-session`; sign out clears it.
+Protected routes wait for the Cloudflare Access identity and redirect to `/login` when it is
+missing. Authentication data is not stored in `localStorage`; Access uses an HttpOnly cookie.
+Local `npm run dev` uses `VITE_DEV_AUTH_EMAIL` because Access is not in front of localhost.
 
 ---
 
@@ -60,13 +63,16 @@ npm run typecheck    # TypeScript only
 npm run preview      # preview the production build
 ~~~
 
-This branch does not have a BFF or live API. The login buttons create a mock session and the
-pages use static template data. Do not add secrets or point the browser at the gateway's
-`/internal/admin/*` routes.
+This branch does not have a BFF or live API. Page data is static. The browser never points at
+the gateway's `/internal/admin/*` routes and never receives the admin secret.
+
+Cloudflare setup (tunnel hostname, Access application, policy, and verification) is documented
+in [docs/14-cloudflare-access.md](docs/14-cloudflare-access.md).
 
 ### Planned next
 
-- Hono BFF with OIDC/session, CSRF, allowlist, and `X-Admin-Actor`.
+- Hono BFF that validates `Cf-Access-Jwt-Assertion`, enforces CSRF, and sets
+  `X-Admin-Actor` from the Access identity.
 - TanStack Query/Table + React Hook Form/Zod for the real admin contract.
 - MSW fixtures, Vitest, Playwright, and CI.
 - Docker + staging/production deployment.
@@ -114,6 +120,7 @@ Start with the [documentation index](docs/README.md).
 | [docs/11-roadmap.md](docs/11-roadmap.md) | Phases, deliverables, exit criteria |
 | [docs/12-risks-and-open-questions.md](docs/12-risks-and-open-questions.md) | Known unknowns and decisions needed before build |
 | [docs/13-glossary.md](docs/13-glossary.md) | Domain vocabulary |
+| [docs/14-cloudflare-access.md](docs/14-cloudflare-access.md) | Cloudflare Access login, tunnel hostname, policy, and validation |
 | [docs/requirements/README.md](docs/requirements/README.md) | One file per functional and non-functional requirement |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 
@@ -127,7 +134,7 @@ Start with the [documentation index](docs/README.md).
 - **repo-owned shadcn-style primitives** (CVA variants, `cn()`, `components/ui`)
 - **Lucide React** icons, **Open Sans Variable** self-hosted
 - **date/number formatting** via native `Intl`
-- Mock auth and dummy data only; no state library or API client yet
+- Cloudflare Access identity; dummy data only; no state library or API client yet
 
 The full target stack (BFF, Query/Table, RHF/Zod, Vitest/Playwright, Docker) is documented in
 [docs/04-tech-stack.md](docs/04-tech-stack.md).
@@ -143,6 +150,7 @@ The non-negotiable security rule remains: **the browser never receives
 - No BFF, live admin API integration, test suite, CI, or deployment configuration yet.
 - The original bare TypeScript scaffold was replaced by the Vite app; `src/index.ts` no
   longer exists.
-- Treat dummy data and mock auth as template-only. Do not ship them as production behavior.
+- Treat dummy page data as template-only. Access login is real when the hostname is behind
+  Cloudflare Access; local dev uses a compile-time-only development identity.
 - Read the relevant requirement file and [docs/03-architecture.md](docs/03-architecture.md)
   before adding real data flows.

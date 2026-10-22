@@ -15,7 +15,7 @@ import { ModelsPage } from "@/features/models/pages/models-page";
 import { OperationsPage } from "@/features/operations/pages/operations-page";
 import { SettingsPage } from "@/features/settings/pages/settings-page";
 import { UsersPage } from "@/features/users/pages/users-page";
-import { getSession } from "@/features/auth/auth-store";
+import { ensureSession } from "@/features/auth/auth-store";
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -25,8 +25,8 @@ const rootRoute = createRootRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
-  beforeLoad: () => {
-    if (getSession()) throw redirect({ to: "/" });
+  beforeLoad: async () => {
+    if (await ensureSession()) throw redirect({ to: "/" });
   },
   component: LoginPage,
 });
@@ -34,8 +34,8 @@ const loginRoute = createRoute({
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
-  beforeLoad: () => {
-    if (!getSession()) throw redirect({ to: "/login" });
+  beforeLoad: async () => {
+    if (!(await ensureSession())) throw redirect({ to: "/login" });
   },
   component: AppLayout,
 });

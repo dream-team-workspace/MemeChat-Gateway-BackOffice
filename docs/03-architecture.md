@@ -22,7 +22,7 @@
                ▼
 ┌──────────────────────────────┐
 │ BFF (Hono on Node)           │
-│  - OIDC login + allowlist    │
+│  - Access JWT validation    │
 │  - session cookie            │
 │  - route allowlist           │
 │  - ADMIN_API_SECRET (server) │
@@ -40,16 +40,22 @@
 │  Postgres + RevenueCat       │
 └──────────────────────────────┘
                ▲
-               │ OIDC redirects
+               │ Access redirects
 ┌──────────────┴───────────────┐
-│ Identity provider            │
-│ GitHub OAuth or Google SSO   │
+│ Cloudflare Access            │
+│ Zero Trust SSO / MFA / policy│
 └──────────────────────────────┘
 ~~~
 
 The browser never talks to the gateway's admin origin. The BFF is the only component that
 holds the admin secret, and it is also the only component that can assert an operator
 identity.
+
+> **Update 2026-10-22:** Cloudflare Access is the identity provider. The SPA reads the verified
+> operator from `/cdn-cgi/access/get-identity`; the future BFF validates
+> `Cf-Access-Jwt-Assertion` and sets `X-Admin-Actor` from its email. The custom OIDC flow
+> previously planned for the BFF is superseded. See
+> [14-cloudflare-access.md](14-cloudflare-access.md).
 
 ## 2. Why a BFF is mandatory
 
@@ -79,7 +85,7 @@ each mutation, restrict the callable surface, and normalize the contract.
 ### 3.2 BFF
 
 - Serve the built SPA (in production) and `/api/*`.
-- Authenticate operators with OIDC; enforce an allowlist.
+- Validate the Cloudflare Access JWT; enforce the Access policy.
 - Issue an HttpOnly, Secure, SameSite=Lax session cookie.
 - Enforce CSRF (Origin + double-submit token) on non-GET.
 - Enforce a method+path allowlist; no generic proxy.
@@ -155,7 +161,7 @@ each mutation, restrict the callable surface, and normalize the contract.
 │  │  ├─ app.ts                       # Hono assembly
 │  │  ├─ config.ts                    # Zod env validation
 │  │  ├─ auth/
-│  │  │  ├─ oidc.ts
+│  │  │  ├─ access.ts
 │  │  │  ├─ session.ts
 │  │  │  └─ middleware.ts
 │  │  ├─ gateway/
@@ -313,15 +319,19 @@ with its method, a Zod body/query schema, and a mapped upstream call.
 
 ### 6.2 Session model
 
-- OIDC authorization code flow with PKCE where supported.
-- State and nonce in short-lived signed cookies; redirect URI allowlisted.
-- On success, verify the ID token, check the allowlist (email domain or explicit logins),
-  and mint a session.
-- Session payload: `sub`, `email`, `name`, `avatarUrl`, `issuedAt`, `expiresAt`, `version`.
-- Cookie: `__Host-bo_session`, HttpOnly, Secure, SameSite=Lax, Path=/, 8-hour absolute
-  lifetime, idle timeout 30 minutes.
-- Logout clears the cookie and redirects to the IdP logout URL when available.
-- No session data in localStorage/sessionStorage.
+- **Identity:** Cloudflare Access, using the same Zero Trust organization as SSH.
+- **Login:** Access handles SSO/MFA and the allowlist policy before the SPA loads.
+- **Session:** Access sets an HttpOnly `CF_Authorization` cookie. The console does not mint
+  `__Host-bo_session` and does not store an identity token in the browser.
+- **Identity read:** the SPA calls `GET /cdn-cgi/access/get-identity` on boot and on a protected
+  navigation. A 401, opaque redirect, or non-JSON response means unauthenticated.
+- **Logout:** `GET /cdn-cgi/access/logout` clears the Access session.
+- **Expiry:** the next identity read fails/redirects; the router redirects to `/login`.
+- **BFF:** when the admin API lands, the BFF validates `Cf-Access-Jwt-Assertion` (issuer,
+  audience, JWKS, expiry) and uses the verified email for `X-Admin-Actor`. Access is not a
+  substitute for the BFF's CSRF, route allowlist, or secret isolation.
+- **Local development:** `import.meta.env.DEV` uses `VITE_DEV_AUTH_EMAIL`; production builds
+  always use Access.
 
 ### 6.3 Request pipeline
 
@@ -433,14 +443,14 @@ No Redux. No global store for server data. No duplicated derived state that can 
 | Concern | Browser | BFF |
 |---|---|---|
 | Env prefix | `VITE_*` only | full `process.env` via Zod |
-| Secrets | none | admin secret, OIDC secret, session secret |
+| Secrets | none | admin secret, Access AUD (not secret) |
 | Node APIs | no | yes |
 | Static assets | yes | serves them |
 | CSP | served by BFF/proxy | sets headers |
 | Source maps | hidden in prod; upload to error tracker only | server maps private |
 
-Production builds must fail if `ADMIN_API_SECRET`, `SESSION_SECRET`, or OIDC secrets appear
-in `dist/` (grep + bundle scan).
+Production builds must fail if `ADMIN_API_SECRET` or any unexpected secret appears in
+`dist/` (grep + bundle scan). Access identity is edge-provided.
 
 ## 12. Scaling the feature set
 

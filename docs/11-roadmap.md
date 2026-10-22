@@ -43,8 +43,8 @@ Goal: a running shell with a real design system, a real BFF skeleton, and a mock
 **Implemented on feature/template (2026-10-21):**
 
 - Vite + React 19 + TypeScript, Tailwind v4, semantic tokens, Open Sans.
-- Code-based TanStack Router with protected routes and mock session.
-- Login screen (desktop split / mobile form), mock SSO buttons, demo mode, theme toggle.
+- Code-based TanStack Router with protected routes and async Cloudflare Access session guards.
+- Login screen (desktop split / mobile form) with Cloudflare Access fallback, theme toggle.
 - Responsive app shell: desktop sidebar, mobile drawer with focus trap, sticky topbar,
   environment badge, skip link.
 - Pinned Settings at the sidebar bottom, plus environment and operator menu.
@@ -54,7 +54,7 @@ Goal: a running shell with a real design system, a real BFF skeleton, and a mock
 
 **Still required for Phase 1 exit:**
 
-- BFF skeleton, session/OIDC interface, mock API store.
+- BFF skeleton with Access JWT validation, mock API store.
 - Shared Zod schemas and MSW fixtures.
 - ESLint/Prettier, Vitest/Playwright, and CI.
 - Docker/deploy skeleton.
@@ -73,7 +73,7 @@ Deliverables:
 3. **BFF skeleton**
    - Hono app, config validation, health, security headers, request IDs, error envelope.
    - Mock mode with deterministic store; live mode adapter stub.
-   - Session/OIDC interface with a local mock provider; dev bypass excluded from production.
+   - Access JWT validation interface with a local dev identity; production always uses Access.
 4. **App shell**
    - Router, auth guard, sidebar/topbar, environment badge, 403/404/error routes.
    - Login page and session menu.
@@ -89,7 +89,7 @@ Deliverables:
 
 Exit criteria:
 
-- `npm run dev` shows the shell; login/logout works with mock OIDC. **(done)**
+- `npm run dev` shows the shell; login/logout works with Cloudflare Access. **(Access flow done; dashboard app/policy pending)**
 - Design review passes light/dark, keyboard, axe. **(core screens done)**
 - Every route renders loading/empty/error states with mock data. **(not yet)**
 - CI is green on a PR to `development`. **(not yet)**
@@ -157,7 +157,7 @@ Preconditions:
 - Backend implements `/internal/admin/*` with AdminAuth + actor.
 - Exact schemas/pagination/grant contract confirmed.
 - Staging gateway + admin secret + network access.
-- OIDC staging app + allowlist.
+- Cloudflare Access staging application + policy.
 
 Deliverables:
 
@@ -184,7 +184,7 @@ Goal: production release with operational confidence.
 
 Deliverables:
 
-1. Production OIDC app + allowlist; production admin secret; network allowlist.
+1. Production Access application + policy; production admin secret; network allowlist.
 2. Production deploy workflow + environment approval.
 3. Production smoke (read-only) + on-call owner.
 4. Operator training: kill switch, cost changes, grants, what not to do.
@@ -218,7 +218,7 @@ Exit criteria:
 Backend admin API ─┐
 Exact schemas ─────┼──► Phase 4 integration ──► Phase 5 launch
 Staging gateway ───┤
-OIDC app/allowlist ┘
+Access app/policy ─┘
 
 Phase 1 ──► Phase 2 ──► Phase 4
        └──► Phase 3 ──► Phase 4

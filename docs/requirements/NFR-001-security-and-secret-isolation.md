@@ -15,15 +15,18 @@ operators are authenticated, mutations are attributed, and the attack surface is
 
 ## Requirements
 
-1. `ADMIN_API_SECRET`, `SESSION_SECRET`, OIDC client secrets, and SSH keys never exist in
-   the browser, source maps, client bundles, or public build artifacts.
+1. `ADMIN_API_SECRET`, Cloudflare Access validation config, and SSH keys never exist in
+   the browser, source maps, client bundles, or public build artifacts. Identity is provided
+   by Access; the app has no OIDC client secret or app-owned session secret.
 2. The browser never calls the gateway admin origin.
 3. All `/api/admin/*` routes require a valid session and CSRF on non-GET.
 4. The BFF allowlist is explicit; no generic proxy, user-supplied URL, or method passthrough.
 5. Every mutation carries `X-Admin-Actor` from the session; client-supplied actor headers are
    ignored.
-6. Sessions use `__Host-bo_session`, HttpOnly, Secure, SameSite=Lax.
-7. OIDC state/nonce/PKCE, allowlist, and same-origin returnTo are enforced.
+6. The operator session is the Cloudflare Access `CF_Authorization` cookie (HttpOnly, Secure).
+   The app does not mint a session cookie.
+7. The Access allowlist policy and session duration are configured in Cloudflare; the BFF
+   validates `Cf-Access-Jwt-Assertion` when it lands.
 8. CSP, HSTS, nosniff, frame-ancestors, and referrer policy are set in production.
 9. No XSS sink: no `dangerouslySetInnerHTML`; JSON is rendered as text.
 10. Body/param limits and timeouts bound every upstream call.
@@ -36,7 +39,7 @@ operators are authenticated, mutations are attributed, and the attack surface is
 - [ ] Secret scan of `dist/`, source maps, image layers, and logs finds no secret.
 - [ ] Direct BFF admin calls without a session return 401; no upstream call.
 - [ ] CSRF missing/incorrect Origin/token is rejected.
-- [ ] Allowlisted/denied OIDC cases behave correctly.
+- [ ] Allowlisted/denied Access cases behave correctly.
 - [ ] Actor header is server-derived; browser spoofing is ignored.
 - [ ] Cookie flags verified in a browser.
 - [ ] CSP/headers verified in production.

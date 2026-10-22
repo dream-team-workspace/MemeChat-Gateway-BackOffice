@@ -2,12 +2,20 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented (Cloudflare Access, 2026-10-22) |
 | Priority | Must |
 | Phase | 1 |
 | Owner | Frontend/BFF |
 | Depends on | — |
 | Source | [Security model](../07-security-model.md), [Architecture](../03-architecture.md) |
+
+> **Implementation update (2026-10-22):** Login is delegated to **Cloudflare Access**. The OIDC
+> authorization-code flow, state/nonce/PKCE cookies, and the app-owned session cookie described
+> below are **superseded**. The console reads `/cdn-cgi/access/get-identity` for the verified
+> operator, signs out through `/cdn-cgi/access/logout`, and uses `VITE_DEV_AUTH_EMAIL` only when
+> `import.meta.env.DEV` is true. The BFF, when it lands, must validate
+> `Cf-Access-Jwt-Assertion` (issuer/audience/JWKS) and use its `email` claim as
+> `X-Admin-Actor`. Setup: [docs/14-cloudflare-access.md](../14-cloudflare-access.md).
 
 ## Intent
 
@@ -52,7 +60,19 @@ Out of scope:
    redirects to login with the current path.
 9. Development may enable `DEV_AUTH_BYPASS`, but production startup rejects it.
 
-## Acceptance criteria
+## Cloudflare Access acceptance (implemented)
+
+- [x] The console hostname is a Cloudflare Access self-hosted application with an allowlist policy.
+- [x] The SPA reads the verified operator from `/cdn-cgi/access/get-identity`; no identity token
+      is stored in localStorage/sessionStorage.
+- [x] Protected routes wait for the identity and redirect to `/login` when it is absent.
+- [x] Sign out navigates to `/cdn-cgi/access/logout`.
+- [x] Local development uses a compile-time-only identity; production builds always use Access.
+- [x] The browser has no OIDC client secret, session secret, admin secret, or gateway call.
+- [x] A production-build browser test renders the console with an Access identity and the login
+      page with a 401 identity response.
+
+## Acceptance criteria (historical OIDC flow, superseded)
 
 - [ ] Unauthenticated `/api/admin/*` requests return 401 without calling the gateway.
 - [ ] Login uses state + nonce (+ PKCE where supported); a mismatched state is rejected.
@@ -73,7 +93,16 @@ Out of scope:
 | GET | `/api/auth/login` | Start OIDC, set state/nonce/PKCE |
 | GET | `/api/auth/callback` | Verify, allowlist, mint session |
 | POST | `/api/auth/logout` | Clear session |
-| GET | `/api/auth/me` | Current operator + environment |
+| GET | `/api/auth/me` | Current operator + environment (future BFF) |
+
+Cloudflare Access endpoints used by the SPA today:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/cdn-cgi/access/get-identity` | Verified operator identity (edge) |
+| GET | `/cdn-cgi/access/logout` | Revoke the Access session |
+
+The OIDC session model below is superseded by the Access cookie/BFF JWT validation.
 
 Session claims: `sub`, `email`, `name`, `avatarUrl`, `iat`, `exp`, `ver`.
 Absolute lifetime 8h; idle 30m (or documented server-side enforcement).
@@ -98,7 +127,7 @@ Absolute lifetime 8h; idle 30m (or documented server-side enforcement).
 ## Security and audit
 
 - No tokens in localStorage/sessionStorage.
-- Session cookie is signed/encrypted with `SESSION_SECRET`; no raw IdP token stored.
+- Historical OIDC session; superseded by the Access cookie plus BFF JWT validation.
 - Allowlist check happens before session creation; deny by default.
 - Log login success/failure with actor hash, IP, request ID; never log tokens.
 - Rate-limit login/callback (10/min/IP).
@@ -112,7 +141,7 @@ Absolute lifetime 8h; idle 30m (or documented server-side enforcement).
 
 ## Open questions
 
-- OIDC provider choice (Q1).
+- ~~OIDC provider choice~~ resolved: Cloudflare Access (ADR-0008).
 - Idle timeout enforcement: stateless claim refresh vs server-side store.
 - Per-user revocation requirements.
 

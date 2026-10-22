@@ -406,7 +406,7 @@ Request body (canonical, full representation of editable fields):
 
 | Header | Rule |
 |---|---|
-| `Cookie: __Host-bo_session` | HttpOnly, Secure, SameSite=Lax |
+| `Cookie: CF_Authorization` | Cloudflare Access cookie; HttpOnly, Secure |
 | `X-CSRF-Token` | Required on POST/PUT/DELETE; double-submit |
 | `X-Request-Id` | UUID generated per request |
 | `Content-Type: application/json` | Mutations |

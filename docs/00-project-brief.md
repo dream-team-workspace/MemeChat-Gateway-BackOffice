@@ -78,7 +78,7 @@ Without a console:
 - **Backend readiness:** the admin API is contract-planned, not implemented. The frontend
   must be mock-first and integrate behind a feature flag.
 - **Auth:** the gateway only knows a shared admin secret. Operator identity must be added by
-  the BFF (OIDC + allowlist + session).
+  the BFF (Cloudflare Access JWT validation + allowlist).
 - **No user directory:** the admin API exposes ledger/usage by exact UID, not a user search.
 - **No global audit:** audit history is per capability only.
 - **Shared secret:** the BFF is the only component that may hold it; it must be rotatable.

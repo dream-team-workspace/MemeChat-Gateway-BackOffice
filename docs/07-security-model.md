@@ -6,6 +6,11 @@
 | Scope | Browser SPA, BFF, gateway admin API boundary |
 | Related | [02-backend-contract-analysis.md](02-backend-contract-analysis.md), [06-api-integration.md](06-api-integration.md), [10-ci-cd-and-environments.md](10-ci-cd-and-environments.md) |
 
+> **Update 2026-10-22:** Cloudflare Access is the operator authentication provider.
+> References below to OIDC, state/nonce/PKCE, or an app-owned session cookie are superseded;
+> see [14-cloudflare-access.md](14-cloudflare-access.md). The BFF must validate
+> `Cf-Access-Jwt-Assertion` before the admin API is wired.
+
 ## 1. Security objectives
 
 1. **No admin secret in the browser.** Ever.
@@ -21,9 +26,9 @@
 | Asset | Where it lives | Sensitivity |
 |---|---|---|
 | `ADMIN_API_SECRET` | BFF environment/secret store | Critical |
-| OIDC client secret | BFF environment/secret store | Critical |
-| `SESSION_SECRET` | BFF environment/secret store | Critical |
-| Operator session cookie | Browser ↔ BFF | High |
+| `CF_ACCESS_AUD` (Access app tag) | BFF environment/config | Low (not secret) |
+| Access `CF_Authorization` cookie | Browser ↔ Cloudflare | High |
+| CSRF token (future BFF) | Browser ↔ BFF | Medium |
 | CSRF token | Browser ↔ BFF | Medium |
 | Capability registry/routing | Gateway/Postgres | High (production behavior) |
 | Credit ledger/usage | Gateway/Postgres | High (financial/PII) |
@@ -39,7 +44,7 @@ Untrusted browser
    ▼
 Trusted BFF  ── secret ──►  Trusted gateway  ──► Postgres / RevenueCat
    ▲
-   │  OIDC
+   │  Access
 Identity provider
 ~~~
 
@@ -52,7 +57,7 @@ must only be reachable by the BFF (network allowlist preferred).
 |---|---|---|---|---|---|
 | T1 | Secret exfiltration | Secret embedded in SPA, source map, logs, error report | Full admin compromise | BFF-only secret; no `VITE_*` secret; build scan; log redaction | CI grep + bundle scan + manual DevTools |
 | T2 | Unauthenticated access | Direct BFF/admin route call | Unauthorized changes | Session required on all `/api/admin/*`; gateway also fail-closed | BFF tests for 401; gateway 401 |
-| T3 | Unauthorized operator | Valid IdP account not on allowlist | Unauthorized access | Email/domain/org allowlist at callback; deny by default | Callback tests with allowed/denied users |
+| T3 | Unauthorized operator | Valid IdP account not covered by the Access policy | Unauthorized access | Access policy allowlist; deny by default | Access policy review + denied-user test |
 | T4 | CSRF | Cross-site form/fetch with session cookie | Unauthorized mutation | SameSite=Lax + Origin check + double-submit CSRF header | BFF tests for missing/bad Origin/token |
 | T5 | XSS | Malicious API string rendered as HTML | Session theft/actions | React escaping; no `dangerouslySetInnerHTML`; CSP; JSON viewer as text | Lint rule + CSP + XSS fixtures |
 | T6 | Open proxy / SSRF | Generic `/api/proxy?url=` or unvalidated path | Access internal network | Explicit allowlist; fixed base URL; validated path params | Route table review + tests |
@@ -60,7 +65,7 @@ must only be reachable by the BFF (network allowlist preferred).
 | T8 | Session fixation | Attacker sets session before login | Impersonation | New session on login; signed state; rotate cookie | Auth integration test |
 | T9 | Open redirect | `returnTo` to attacker site | Phishing | Same-origin path validation; reject scheme/host | Unit tests |
 | T10 | CSRF via login | Login CSRF | Account confusion | State + nonce + PKCE | Auth tests |
-| T11 | Brute force / credential stuffing | Login endpoint | Access attempts | IdP handles credentials; rate-limit callback/login; alert | Rate-limit tests |
+| T11 | Brute force / credential stuffing | Access login | Access attempts | Access/IdP handles credentials and MFA; monitor Access logs | Access policy + logs |
 | T12 | Duplicate grant | Double click/retry/timeout | Double credits | requestId idempotency; pending lock; no auto-retry; confirm | E2E retry test + backend test |
 | T13 | Accidental destructive change | Misclick/wrong capability | Outage | Type-ID confirm; reason; diff; no optimistic UI | E2E kill-switch test |
 | T14 | Audit forgery | Browser sets `X-Admin-Actor` | False attribution | BFF overwrites actor from session; browser header ignored | BFF test asserts override |
@@ -75,51 +80,65 @@ must only be reachable by the BFF (network allowlist preferred).
 
 ### 4.1 Provider
 
-Use an OIDC provider the team already trusts:
-
-- **GitHub OAuth** (recommended if the team/org is on GitHub): require a verified primary
-  email; optionally verify org/team membership via the GitHub API.
-- **Google Workspace OIDC** (recommended if the team has a Workspace domain): restrict to the
-  company domain and require `email_verified`.
-
-The provider choice is an open question (see [12-risks-and-open-questions.md](12-risks-and-open-questions.md)).
-The implementation must not hardcode a provider in feature code; the BFF owns it.
+Operator authentication is **Cloudflare Access**, using the same Zero Trust organization as the
+SSH entry point (`rough-water-d6a6.cloudflareaccess.com`). Access owns the login page, identity
+provider, MFA, allowlist policy, session duration, and the authorization cookie.
 
 ### 4.2 Flow
 
-1. `GET /api/auth/login?returnTo=/capabilities`
-2. Generate state, nonce, and PKCE verifier; store in short-lived signed HttpOnly cookies.
-3. Redirect to the IdP.
-4. Callback verifies state, exchanges code, validates the ID token signature/issuer/audience/
-   expiry/nonce.
-5. Check allowlist:
-   - explicit login list, or
-   - email domain list, or
-   - GitHub org/team membership.
-6. Mint a new session (never reuse a pre-login session ID).
-7. Redirect to a validated same-origin `returnTo` or `/`.
+1. The browser requests the console hostname (for example `console.dream-team.works`).
+2. Cloudflare Access intercepts the request and redirects unauthenticated users to the team
+   login page.
+3. After the policy passes, Access sets an HttpOnly authorization cookie and serves the SPA.
+4. The SPA calls `GET /cdn-cgi/access/get-identity` and maps `email`, `name`, `idp`, and `iat`
+   into the operator session. It never reads or stores a token.
+5. Sign out navigates to `GET /cdn-cgi/access/logout`, which clears the cookie and revokes the
+   session across applications.
+6. There is no application-owned OIDC client, state/nonce/PKCE cookie, or session-signing
+   secret.
 
 ### 4.3 Session
 
-- Cookie name: `__Host-bo_session`.
-- Flags: `HttpOnly; Secure; SameSite=Lax; Path=/`; no `Domain`.
-- Content: signed (JWS) or encrypted (JWE) compact token via `jose`; never a raw IdP token.
-- Claims: `sub`, `email`, `name`, `avatarUrl`, `iat`, `exp`, `ver`.
-- Absolute lifetime: 8 hours. Idle timeout: 30 minutes (refresh `iat` on activity or use a
-  server-side session store if strict idle timeout is required).
-- Logout: clear cookie, optionally redirect to IdP logout.
-- Revocation: stateless sessions cannot be individually revoked without a denylist. For v1,
-  rotate `SESSION_SECRET` to revoke all sessions; document this. Add a denylist if the team
-  needs per-user revocation.
+- The session cookie is Cloudflare's `CF_Authorization`, HttpOnly and Secure. The SPA cannot
+  read it.
+- Session duration is configured on the Access application (8 hours is the current proposal).
+- The console does not mint a `__Host-bo_session` cookie. The earlier requirement is
+  superseded.
+- An expired Access session causes the next `get-identity` request to redirect; the SPA treats
+  an opaque redirect or non-200 response as unauthenticated and shows `/login`.
+- The origin must be reachable only through the tunnel. If it is directly reachable, Access is
+  bypassable and the origin/BFF must validate the Access JWT.
 
 ### 4.4 Authorization
 
-- v1: a single role, **operator**, granted by the allowlist.
-- The BFF does not expose admin routes to unauthenticated requests.
-- The gateway remains the final authority for business validation, but it only sees one shared
-  secret; it cannot distinguish operators. The BFF is the identity source.
-- Future RBAC: add `roles`/`permissions` to the session, enforce in BFF routes, and hide
-  actions in the UI. Do not rely on UI hiding alone.
+- The Access policy is the allowlist; deny by default.
+- v1 has one role, **operator**.
+- The gateway still sees one shared admin secret and cannot distinguish operators. The BFF is
+  the identity source and sets `X-Admin-Actor` from the verified Access email.
+- The browser never calls the gateway admin origin and never receives the admin secret.
+
+### 4.5 BFF validation (required when the admin API lands)
+
+The BFF must validate the Access JWT on every `/api/admin/*` request:
+
+~~~ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+const team = "rough-water-d6a6.cloudflareaccess.com";
+const jwks = createRemoteJWKSet(new URL("https://" + team + "/cdn-cgi/access/certs"));
+const token = request.headers.get("Cf-Access-Jwt-Assertion");
+
+const { payload } = await jwtVerify(token ?? "", jwks, {
+  issuer: "https://" + team,
+  audience: process.env.CF_ACCESS_AUD,
+});
+~~~
+
+Use `payload.email` for `X-Admin-Actor`. Do not trust
+`Cf-Access-Authenticated-User-Email` alone. The BFF still needs Origin/CSRF checks for mutations,
+the explicit route allowlist, and secret isolation. Cloudflare's guidance says a Tunnel-connected
+origin is protected by the tunnel; validation is defense in depth and is required if the origin is
+not tunnel-only.
 
 ## 5. Secret management
 
@@ -144,7 +163,7 @@ The implementation must not hardcode a provider in feature code; the BFF owns it
 5. Remove the old value from the gateway and secret store.
 6. Record the rotation in the ops log.
 
-For `SESSION_SECRET` rotation, all operators are logged out; announce it.
+Access session revocation is managed from Cloudflare (per-user or policy); no app session secret exists.
 
 ### 5.3 Storage
 
@@ -277,10 +296,10 @@ Credit grants are the only money mutation in v1.
 
 ## 13. Incident response
 
-1. **Suspected secret leak:** rotate `ADMIN_API_SECRET` and `SESSION_SECRET`; revoke
+1. **Suspected secret leak:** rotate `ADMIN_API_SECRET`; revoke Cloudflare Access
    sessions; review gateway audit/401 logs; redeploy.
-2. **Suspected operator account compromise:** remove from allowlist/IdP org; rotate session
-   secret (global logout); review audit and ledger grants.
+2. **Suspected operator account compromise:** remove the user from the Access policy/IdP;
+   revoke Access sessions; review audit and ledger grants.
 3. **Malicious dependency:** pin/remove, rebuild from a clean lockfile, rotate secrets if the
    build had access.
 4. **XSS report:** disable the affected route via feature flag if possible, patch, rotate
@@ -294,7 +313,7 @@ Runbooks live with the deployment docs; this section is the policy.
 
 - [ ] No secret in bundle/source maps/logs (automated scan + manual).
 - [ ] All admin BFF routes require a session; direct calls return 401.
-- [ ] Non-allowlisted IdP users are denied.
+- [ ] Non-allowlisted users are denied by the Access policy.
 - [ ] CSRF: missing/invalid Origin or token is rejected on POST/PUT.
 - [ ] Session cookie has HttpOnly, Secure, SameSite=Lax, `__Host-` prefix.
 - [ ] Open redirect is rejected.
