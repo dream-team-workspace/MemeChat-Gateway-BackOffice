@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { Building2, Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -38,7 +37,6 @@ const themeOptions: Array<{
 
 export function SettingsPage() {
   const session = useSession();
-  const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
 
   if (!session) return null;
@@ -110,7 +108,7 @@ export function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Account</CardTitle>
-              <CardDescription>Identity used for the mock operator session</CardDescription>
+              <CardDescription>Identity for the current operator session</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -132,7 +130,7 @@ export function SettingsPage() {
                 <div>
                   <p className="text-xs font-semibold">Session</p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Signed in {signedIn} · mock preview, not a real session.
+                    Signed in {signedIn} · {session.provider === "development" ? "development" : "Cloudflare Access"} session.
                   </p>
                 </div>
                 <Button
@@ -140,7 +138,6 @@ export function SettingsPage() {
                   variant="outline"
                   onClick={() => {
                     signOut();
-                    void navigate({ to: "/login" });
                   }}
                 >
                   <LogOut />
@@ -177,7 +174,7 @@ export function SettingsPage() {
                 <span className="text-muted-foreground">Auth</span>
                 <span className="flex items-center gap-1.5 font-medium">
                   <ShieldCheck className="size-3.5" />
-                  Mock session
+                  {session.provider === "development" ? "Development" : "Cloudflare Access"}
                 </span>
               </div>
             </CardContent>
@@ -190,12 +187,12 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px] leading-5 text-muted-foreground">
               <p>
-                The login, navigation, theme, and page layouts are implemented.
-                Data is dummy and no gateway request is made.
+                Cloudflare Access authenticates operators before the console
+                loads. Page data is still dummy and no gateway request is made.
               </p>
               <p>
-                In production, the BFF owns the admin secret and the actor header.
-                The browser never calls the gateway directly.
+                In production, the BFF owns the admin secret and the actor
+                header. The browser never calls the gateway directly.
               </p>
               <div className="flex items-center gap-2 text-foreground">
                 <Building2 className="size-3.5" />

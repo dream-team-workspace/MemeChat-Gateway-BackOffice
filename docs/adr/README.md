@@ -12,6 +12,7 @@ if a decision changes, add a new ADR that supersedes the old one.
 | [0005](0005-tanstack-query-router-table.md) | TanStack Router/Query/Table + RHF/Zod | Proposed |
 | [0006](0006-branching-and-deployments.md) | master=prod, development=staging | Proposed |
 | [0007](0007-mock-first-contract.md) | Mock-first contract until admin API lands | Proposed |
+| [0008](0008-cloudflare-access-auth.md) | Cloudflare Access for operator authentication | Accepted |
 
 Template:
 

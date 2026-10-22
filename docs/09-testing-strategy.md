@@ -113,7 +113,7 @@ Run against BFF mock mode on every PR; run against staging on deploy.
 
 | # | Scenario | Assertions |
 |---|---|---|
-| E1 | Login via mock OIDC | Session cookie set; redirected to returnTo; shell visible |
+| E1 | Login via Cloudflare Access | Verified identity loaded; protected shell visible |
 | E2 | Non-allowlisted login | Access denied page; no session |
 | E3 | Session expiry during a read | Redirect to login with returnTo; after login, back to page |
 | E4 | Capabilities list/search/filter | URL updates; filtered rows; empty state; refresh |
@@ -221,10 +221,10 @@ Nightly/release:
 
 | Environment | Data | Auth | Purpose |
 |---|---|---|---|
-| Local | MSW/mock | Dev bypass or mock OIDC | Fast iteration |
-| CI | Mock | Mock OIDC | PR gates |
-| Staging | Real gateway staging DB | Real OIDC (staging app) | Integration + smoke |
-| Production | Real | Real OIDC | Smoke only (read-only unless approved) |
+| Local | MSW/mock | Dev identity (`VITE_DEV_AUTH_EMAIL`) | Fast iteration |
+| CI | Mock | Dev identity / mocked `get-identity` | PR gates |
+| Staging | Real gateway staging DB | Staging Access app | Integration + smoke |
+| Production | Real | Production Access app | Smoke only (read-only unless approved) |
 
 Production E2E must not mutate real capabilities or grant credits without an explicit,
 approved test plan. Prefer read-only smoke + synthetic staging mutations.

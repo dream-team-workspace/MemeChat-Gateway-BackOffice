@@ -40,23 +40,27 @@ Exit criteria:
 
 Goal: a running shell with a real design system, a real BFF skeleton, and a mock contract.
 
-**Implemented on feature/template (2026-10-21):**
+**Implemented on feature/template (2026-10-21, updated 2026-10-22):**
 
 - Vite + React 19 + TypeScript, Tailwind v4, semantic tokens, Open Sans.
-- Code-based TanStack Router with protected routes and mock session.
-- Login screen (desktop split / mobile form), mock SSO buttons, demo mode, theme toggle.
+- Code-based TanStack Router with protected routes and async Cloudflare Access session guards.
+- Login screen (desktop split / mobile form) with Cloudflare Access fallback, theme toggle.
 - Responsive app shell: desktop sidebar, mobile drawer with focus trap, sticky topbar,
   environment badge, skip link.
 - Pinned Settings at the sidebar bottom, plus environment and operator menu.
 - Dummy Overview, Capabilities, Models, Users, Operations, and Settings pages.
 - Light/dark/system theme, persisted with no-flash boot script.
 - Build and typecheck pass; axe clean on core screens; no overflow at 360–1440.
+- ESLint 10 + typescript-eslint; `npm run lint` clean.
+- GitHub Actions CI: lint on PRs, clean build on pushes, gated deploy placeholder on master.
 
 **Still required for Phase 1 exit:**
 
-- BFF skeleton, session/OIDC interface, mock API store.
+- BFF skeleton with Access JWT validation, mock API store.
 - Shared Zod schemas and MSW fixtures.
-- ESLint/Prettier, Vitest/Playwright, and CI.
+- Prettier, Vitest/Playwright; CI is wired but not yet exercised on GitHub.
+- Apply the domain refinements in [03-architecture.md](03-architecture.md) §12.2:
+  `dashboard` → `overview`, `shared/admin-api`, capabilities subfeatures, boundary lint.
 - Docker/deploy skeleton.
 
 Deliverables:
@@ -73,7 +77,7 @@ Deliverables:
 3. **BFF skeleton**
    - Hono app, config validation, health, security headers, request IDs, error envelope.
    - Mock mode with deterministic store; live mode adapter stub.
-   - Session/OIDC interface with a local mock provider; dev bypass excluded from production.
+   - Access JWT validation interface with a local dev identity; production always uses Access.
 4. **App shell**
    - Router, auth guard, sidebar/topbar, environment badge, 403/404/error routes.
    - Login page and session menu.
@@ -82,17 +86,19 @@ Deliverables:
    - MSW handlers + fixtures for every endpoint.
    - Contract tests.
 6. **CI**
-   - `ci.yml` with lint/typecheck/test/build/e2e.
-   - Branch protection, Dependabot, secret scan.
+   - `ci.yml` with lint on PRs and clean build on pushes. **(done)**
+   - Branch protection, Dependabot, secret scan, E2E. **(pending)**
+   - Production deploy job gated by `DEPLOY_ENABLED`; placeholder until server setup. **(pending)**
 7. **Deploy skeleton (no production)**
    - Dockerfile, compose, deploy script, staging workflow (can deploy a "hello" shell).
 
 Exit criteria:
 
-- `npm run dev` shows the shell; login/logout works with mock OIDC. **(done)**
+- `npm run dev` shows the shell; login/logout works with Cloudflare Access. **(Access flow done; dashboard app/policy pending)**
 - Design review passes light/dark, keyboard, axe. **(core screens done)**
 - Every route renders loading/empty/error states with mock data. **(not yet)**
-- CI is green on a PR to `development`. **(not yet)**
+- CI workflow is present; local lint/build pass. GitHub Actions execution is pending the
+  branch being pushed and a PR being opened. **(workflow added)**
 - No secret in the bundle scan. **(no secrets present; scan not automated yet)**
 
 Demo: navigate the shell, switch theme, sign in/out, open empty pages with consistent states.
@@ -157,7 +163,7 @@ Preconditions:
 - Backend implements `/internal/admin/*` with AdminAuth + actor.
 - Exact schemas/pagination/grant contract confirmed.
 - Staging gateway + admin secret + network access.
-- OIDC staging app + allowlist.
+- Cloudflare Access staging application + policy.
 
 Deliverables:
 
@@ -184,7 +190,7 @@ Goal: production release with operational confidence.
 
 Deliverables:
 
-1. Production OIDC app + allowlist; production admin secret; network allowlist.
+1. Production Access application + policy; production admin secret; network allowlist.
 2. Production deploy workflow + environment approval.
 3. Production smoke (read-only) + on-call owner.
 4. Operator training: kill switch, cost changes, grants, what not to do.
@@ -218,7 +224,7 @@ Exit criteria:
 Backend admin API ─┐
 Exact schemas ─────┼──► Phase 4 integration ──► Phase 5 launch
 Staging gateway ───┤
-OIDC app/allowlist ┘
+Access app/policy ─┘
 
 Phase 1 ──► Phase 2 ──► Phase 4
        └──► Phase 3 ──► Phase 4

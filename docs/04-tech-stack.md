@@ -58,7 +58,7 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 |---|---|---|---|
 | HTTP framework | Hono | 4.13.x | Small, Web-standard, excellent testability via `app.request` |
 | Node adapter | @hono/node-server | current | Serve HTTP + static assets |
-| OIDC | Arctic | 3.7.x | Provider-specific OAuth helpers (GitHub/Google), PKCE support |
+| Access JWT | jose | current | Verify Cloudflare Access tokens in the BFF (JWKS, issuer, audience) |
 | JWT/session signing | jose | current | Standards-based JWS/JWE; no custom crypto |
 | Env validation | Zod | 4.6.x | Fail fast on missing/unsafe config |
 | Logging | pino | current | Structured JSON with redaction hooks |
@@ -72,8 +72,8 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 | HTTP mocking | MSW | 3.0.x | Same handlers in browser, Node, and Playwright |
 | E2E | Playwright | 1.64.x | Cross-browser, tracing, visual screenshots |
 | Accessibility | axe-core + @axe-core/playwright + vitest-axe | current | Automated WCAG checks in unit and E2E |
-| Lint | ESLint + typescript-eslint | 10.13.x / 8.72.x | Flat config, typed rules |
-| Formatting | Prettier + Tailwind plugin | 3.9.x / 0.8.x | Deterministic formatting |
+| Lint | ESLint + typescript-eslint + React hooks/refresh plugins | 10.13.0 / 8.72.0 | Flat config, typed rules; `npm run lint` is the CI PR check |
+| Formatting | Prettier + Tailwind plugin | planned | Not installed yet; add before enforcing a format check |
 | Boundary linting | eslint-plugin-boundaries | current | Enforce feature/folder dependency rules |
 
 ### 2.6 Delivery
@@ -146,9 +146,9 @@ BFF (runtime, secret):
 
 - `NODE_ENV`, `PORT`, `APP_ORIGIN`
 - `ADMIN_API_BASE_URL`, `ADMIN_API_SECRET`
-- `SESSION_SECRET`
-- `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`
-- `OIDC_ALLOWED_DOMAINS` / `OIDC_ALLOWED_LOGINS`
+- `CF_ACCESS_TEAM_DOMAIN`
+- `CF_ACCESS_AUD`
+- `VITE_DEV_AUTH_EMAIL` (development only)
 - `DEV_AUTH_BYPASS` — local only; startup rejects in production
 - `ADMIN_API_MODE` — `live|mock`; production must be `live`
 - `LOG_LEVEL`, `REQUEST_TIMEOUT_MS`, `TRUST_PROXY`

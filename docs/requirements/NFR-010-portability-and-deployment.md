@@ -26,7 +26,7 @@ configuration injected at runtime and a rollback that does not rebuild.
 9. Rollback by previous image tag < 5 minutes.
 10. Container runs as non-root; minimal runtime; read-only FS where possible.
 11. Logs to stdout JSON; no local state required (stateless sessions).
-12. Staging and production use separate secrets, OIDC apps, and gateway targets.
+12. Staging and production use separate secrets, Access applications, and gateway targets.
 
 ## Acceptance criteria
 
@@ -37,7 +37,7 @@ configuration injected at runtime and a rollback that does not rebuild.
 - [ ] Health/smoke pass after deploy.
 - [ ] Rollback drill succeeds in < 5 minutes.
 - [ ] Container is non-root and has no shell in runtime.
-- [ ] Staging cannot reach production admin API/OIDC.
+- [ ] Staging cannot reach the production admin API or production Access application.
 - [ ] Production deploy requires environment approval.
 
 ## Verification

@@ -22,7 +22,7 @@ asking the original author.
 5. Architecture doc with topology, folder rules, and data flow.
 6. Security model with threat table, auth, secrets, headers, incident steps.
 7. CI/CD doc with branch protection, environments, deploy/rollback, secret matrix.
-8. Runbooks: deploy, rollback, rotate admin/session/OIDC secrets, revoke operator, gateway
+8. Runbooks: deploy, rollback, rotate the admin secret, revoke Access sessions, gateway
    outage.
 9. ADRs for expensive decisions.
 10. Every behavior change updates docs in the same PR.

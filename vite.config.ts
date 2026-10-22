@@ -12,5 +12,12 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Cloudflare Tunnel forwards the public Host header. Localhost is allowed
+    // by Vite automatically; the console hostnames are allowed for preview and
+    // Access testing behind the tunnel.
+    allowedHosts: [".dream-team.works", "console.dream-team.works", "console-staging.dream-team.works"],
+  },
+  preview: {
+    allowedHosts: [".dream-team.works", "console.dream-team.works", "console-staging.dream-team.works"],
   },
 });

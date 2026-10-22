@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronUp, LogOut, Settings2 } from "lucide-react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import { signOut, useSession } from "@/features/auth/auth-store";
 import { cn } from "@/lib/utils";
 
 export function UserMenu() {
   const session = useSession();
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +76,6 @@ export function UserMenu() {
             onClick={() => {
               setOpen(false);
               signOut();
-              void navigate({ to: "/login" });
             }}
             className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >

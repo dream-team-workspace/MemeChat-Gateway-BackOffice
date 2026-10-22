@@ -1,8 +1,8 @@
 # Documentation index
 
 This repository is documentation-first. The planning corpus is complete; the Phase 1 UI
-template is implemented on `feature/template` with mock auth and dummy data. The BFF, live
-admin API, tests, and deployment workflows are still pending.
+template is implemented on `feature/template` with Cloudflare Access login and dummy data. The
+BFF, live admin API, tests, and deployment workflows are still pending.
 
 ## Start here
 
@@ -33,6 +33,7 @@ admin API, tests, and deployment workflows are still pending.
 **Security / deployment**
 
 - [Security model](07-security-model.md)
+- [Cloudflare Access setup](14-cloudflare-access.md)
 - [CI/CD and environments](10-ci-cd-and-environments.md)
 
 **New team members**

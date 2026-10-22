@@ -25,61 +25,77 @@
 | React component file | kebab-case | `capability-table.tsx` |
 | Component symbol | PascalCase | `CapabilityTable` |
 | Hook | `use-*.ts` / `useX` | `use-capability-filters.ts` |
-| API module | `<feature>.api.ts` | `capabilities.api.ts` |
-| Query/mutation module | `<feature>.queries.ts` | `capabilities.queries.ts` |
-| Zod schema | `<feature>.schemas.ts` or `schemas.ts` | `capability-form-schema.ts` |
+| API module | `<domain>.api.ts` | `capabilities.api.ts` |
+| Query/mutation module | `<domain>.queries.ts` | `capabilities.queries.ts` |
+| Zod schema | `<domain>.schemas.ts` or `schemas.ts` | `capability-form-schema.ts` |
 | Utility | kebab-case | `format-credits.ts` |
 | Test | `*.test.ts(x)` next to unit | `capability-table.test.tsx` |
 | E2E | `*.spec.ts` under `tests/e2e` | `kill-switch.spec.ts` |
 | Route file | TanStack file route | `capabilities.$capabilityId.tsx` |
 
-No `index.ts` barrels inside feature internals except the feature's public entry point. Barrel
+No `index.ts` barrels inside domain internals except the domain's public entry point. Barrel
 files can defeat tree-shaking and hide dependency cycles.
 
 ## 3. Folder rules
 
-- `src/app` — bootstrapping, providers, router, shell; no business logic.
-- `src/routes` — thin route adapters; no fetch, no forms, no mapping.
-- `src/features/<name>` — vertical slice; private internals; public `index.ts`.
+- `src/app` — bootstrapping, providers, router, layouts, guards; no business logic.
+- `src/app/routes` — thin route declarations; no fetch, no forms, no mapping.
+- `src/features/<domain>` — vertical domain slice; subfeatures inside; public `index.ts`.
+- `src/platform` — cross-domain infrastructure (auth, typed API client, config); no product
+  rules.
 - `src/components/ui` — shadcn primitives; local patches documented.
-- `src/components/common` — cross-feature compositions.
+- `src/components/common` — cross-domain compositions.
 - `src/components/layout` — shell-level layout.
 - `src/lib` — runtime-agnostic browser utilities.
-- `shared` — Zod/types/endpoints for both runtimes; no React/DOM/Node.
+- `shared/admin-api` — one contract file per admin resource; no React/DOM/Node.
 - `server` — BFF; may import `shared`; must not import `src`.
 
-Cross-feature imports are forbidden. If two features need the same thing, lift it to
-`components/common` or `shared`.
+Cross-domain imports are forbidden. If two domains need the same thing, lift it to
+`components/common` or `shared/admin-api`. `features/overview` is the only composition
+domain and may import public summary hooks from capabilities/models.
+
+Do not create a domain per admin endpoint or per capability kind. A new kind/provider is data
+inside the existing registry domain; a subfeature is promoted only when the backend exposes a
+global resource with its own navigation, route, and ownership.
+
 
 ## 4. Imports and aliases
 
-- @`/*` → `src/*`.
+- `@/*` → `src/*`.
 - `#shared/*` or `shared/*` → `shared/*` (pick one and enforce it; this document uses
   `shared/*` in prose).
 - `#server/*` → `server/src/*` for server-internal imports.
-- Import order: Node/built-ins, external, shared, @`/`, relative; blank line between groups.
+- Import order: Node/built-ins, external, shared, `@/`, relative; blank line between groups.
 - No deep relative climbs (`../../../`); use aliases.
 - No circular imports; ESLint `import/no-cycle` (or equivalent) is a CI failure.
 
-## 5. Feature module contract
+## 5. Domain module contract
 
-Every feature exports only what routes/app need:
+Every domain exports only what routes/app need:
 
 ~~~ts
 // features/capabilities/index.ts
 export { CapabilitiesPage } from "./pages/capabilities-page";
 export { CapabilityDetailPage } from "./pages/capability-detail-page";
+export { CapabilityRoutingPage } from "./pages/capability-routing-page";
 export { CapabilityAuditPage } from "./pages/capability-audit-page";
+export { useCapabilitiesSummary } from "./queries/summary";
 ~~~
 
+- Only the **domain** has a public entry point. `components/routing` and
+  `components/audit` are subfeatures, not importable packages.
 - Do not export internal components "just in case".
-- Do not export query keys; keep them in the API module.
-- Tests may import internals directly within the feature.
+- Do not export query keys; keep them in the query/mutation module.
+- `features/overview` may import public summary hooks; other domains may not import each
+  other.
+- Tests may import internals directly within the domain.
+- No domain per capability kind; new kinds render through the existing registry/form renderer.
+
 
 ## 6. Server state
 
 - TanStack Query owns all server data.
-- Query keys are typed factories in the feature API module.
+- Query keys are typed factories in the domain query/mutation module.
 - Query functions return parsed, typed data; never raw `Response`.
 - Components do not call `fetch`.
 - Mutations invalidate precise keys; no global clear.
@@ -90,7 +106,8 @@ export { CapabilityAuditPage } from "./pages/capability-audit-page";
 
 ## 7. URL state
 
-- Filters, search, tabs, and cursors live in search params.
+- Filters, search, and cursors live in search params; **tabs are route segments**
+  (`/capabilities/:id/routing`, `/users/:uid/usage`), not local state.
 - Validate with a Zod schema in the route; invalid values fall back to defaults.
 - Use `replace` for typing/filter changes to avoid history spam; use `push` for navigation.
 - Never store secrets, UIDs, or ledger data in the URL beyond the route's `:uid`.
@@ -111,7 +128,7 @@ export { CapabilityAuditPage } from "./pages/capability-audit-page";
 
 - Tailwind utilities + semantic tokens only.
 - `cn()` for conditional classes; CVA for variants.
-- No raw hex/oklch in feature code; no arbitrary shadows.
+- No raw hex/oklch in domain code; no arbitrary shadows.
 - Follow [DESIGN.md](../DESIGN.md); do not fork shared components per page.
 - Responsive classes are mobile-first; test 360/768/1024/1440.
 - No inline styles except dynamic values that cannot be expressed as classes (and even then,
@@ -203,6 +220,10 @@ A change is done when:
 
 - `fetch` in a component or route file.
 - `any` or unchecked JSON casts at a boundary.
+- One top-level domain per capability kind (`chat`, `tts`, `stt`, …).
+- One top-level domain per admin endpoint.
+- Tab state kept only in local state; tabs must be nested URLs.
+- Duplicate query keys in `overview` instead of consuming domain public queries.
 - Raw colors, arbitrary shadows, or a second icon set.
 - Generic admin proxy or user-supplied upstream URL.
 - Optimistic credit/registry mutation.

@@ -1,37 +1,18 @@
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import {
-  ArrowRight,
   CheckCircle2,
-  Loader2,
   ScrollText,
   ShieldCheck,
   Waypoints,
 } from "lucide-react";
 
 import { BrandMark } from "@/components/common/brand-mark";
-import { GithubIcon } from "@/components/common/github-icon";
-import { GoogleIcon } from "@/components/common/google-icon";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { signInDemo } from "@/features/auth/auth-store";
-
-type Provider = "github" | "google" | "demo";
+import { signIn } from "@/features/auth/auth-store";
 
 export function LoginPage() {
-  const navigate = useNavigate();
-  const [pending, setPending] = useState<Provider | null>(null);
-
-  function handleSignIn(provider: Provider) {
-    if (pending) return;
-    setPending(provider);
-    window.setTimeout(() => {
-      signInDemo();
-      void navigate({ to: "/" });
-    }, 450);
-  }
+  const isDevelopment = import.meta.env.DEV;
 
   return (
     <div className="relative grid min-h-dvh bg-background lg:grid-cols-[1.05fr_1fr]">
@@ -120,72 +101,32 @@ export function LoginPage() {
           <div className="w-full max-w-sm animate-in">
             <div className="mb-8">
               <Badge variant="outline" className="mb-4">
-                Secure operator access
+                Zero Trust access
               </Badge>
-              <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Operator sign-in
+              </h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Sign in with your workspace identity to manage the MemeChat
-                gateway.
+                {isDevelopment
+                  ? "Local development uses a stand-in operator identity. Cloudflare Access is only in front of the deployed hostname."
+                  : "Cloudflare Access verifies your workspace identity before this console loads. This app never stores a password or an identity token."}
               </p>
-            </div>
-
-            <div className="space-y-3">
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                onClick={() => handleSignIn("github")}
-                disabled={pending !== null}
-              >
-                {pending === "github" ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <GithubIcon className="size-4" />
-                )}
-                Continue with GitHub
-              </Button>
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSignIn("google")}
-                disabled={pending !== null}
-              >
-                {pending === "google" ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <GoogleIcon className="size-4" />
-                )}
-                Continue with Google
-              </Button>
-            </div>
-
-            <div className="my-6 flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                or
-              </span>
-              <Separator className="flex-1" />
             </div>
 
             <Button
               type="button"
-              variant="ghost"
+              size="lg"
               className="w-full"
-              onClick={() => handleSignIn("demo")}
-              disabled={pending !== null}
+              onClick={() => signIn()}
             >
-              {pending === "demo" ? (
-                <Loader2 className="animate-spin" />
-              ) : null}
-              Continue in demo mode
-              {pending !== "demo" ? <ArrowRight /> : null}
+              <ShieldCheck className="size-4" />
+              Continue with Cloudflare Access
             </Button>
 
             <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">
-              Preview template — authentication is mocked. No gateway calls are
-              made.
+              {isDevelopment
+                ? "Development mode signs you in locally; a full reload re-establishes the development identity."
+                : "You will be redirected to your organization's Access login if your session is missing or expired."}
             </p>
 
             <p className="mt-8 text-center text-[11px] leading-5 text-muted-foreground">
@@ -193,16 +134,12 @@ export function LoginPage() {
               <br />
               By continuing you agree to the internal operations policy.
             </p>
-
-            <p className="sr-only" role="status" aria-live="polite">
-              {pending ? "Signing in" : ""}
-            </p>
           </div>
         </div>
 
         <footer className="flex items-center justify-between border-t border-border px-5 py-4 text-[10px] uppercase tracking-[0.12em] text-muted-foreground lg:px-8">
           <span>© 2026 MemeChat</span>
-          <span>Gateway console · Staging</span>
+          <span>Gateway console · Cloudflare Access</span>
         </footer>
       </main>
     </div>

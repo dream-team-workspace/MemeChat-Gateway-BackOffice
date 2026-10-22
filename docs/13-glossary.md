@@ -27,7 +27,8 @@
 | **Keyset pagination** | Cursor pagination based on an indexed ordering (e.g. `(uid, created_at DESC)`), not OFFSET |
 | **Cursor** | Opaque string identifying the next page; the client never constructs it |
 | **Cache invalidation** | Forcing the gateway's in-memory capability registry snapshot to reload |
-| **OIDC** | OpenID Connect; the operator login protocol |
+| **Cloudflare Access** | Zero Trust login/policy layer used for operators (ADR-0008) |
+| **OIDC** | Historical: the previously planned operator login protocol; superseded by Access |
 | **PKCE** | Proof Key for Code Exchange; protects the OAuth code flow |
 | **Session** | Signed HttpOnly cookie representing an authenticated operator |
 | **CSRF** | Cross-Site Request Forgery; mitigated by Origin + double-submit token |
