@@ -1,8 +1,8 @@
 # Documentation index
 
-This repository is documentation-first. The planning corpus is complete; the Phase 1 UI
-template is implemented on `feature/template` with Cloudflare Access login and dummy data. The
-BFF, live admin API, tests, and deployment workflows are still pending.
+This repository is documentation-first. The planning corpus is complete; the Phase 1
+operator console and mock BFF are implemented on `feature/implementation`. The live gateway
+admin API, Playwright/E2E coverage, and production deployment are still pending.
 
 ## Start here
 

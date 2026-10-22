@@ -2,69 +2,66 @@
 
 ## Repo status
 
-- **Phase 1 — UI template with Cloudflare Access login.** The Vite/React console is
-  implemented on `feature/template`. Read `README.md`, `DESIGN.md`, and `docs/README.md` first.
-- The template includes Cloudflare Access login, responsive sidebar/topbar, pinned Settings,
-  theme switching, and dummy Overview/Capabilities/Models/Users/Operations/Settings pages.
-- There is **no BFF, live admin API integration, or test suite yet**. CI lives in
-  `.github/workflows/ci.yml`: lint on PRs, clean build on pushes, gated deploy placeholder.
-  Access identity lives in `src/features/auth/cloudflare-access.ts` and `auth-store.ts`;
-  all page data is static. Setup is in `docs/14-cloudflare-access.md`.
-- Do not merge this branch to `development`/`master` until the Phase 1 exit criteria in
-  `docs/11-roadmap.md` are met.
+- **Phase 1 implementation.** The Vite/React operator console, Cloudflare Access login, shared
+  admin contract, and Hono BFF are implemented on `feature/implementation`.
+- The BFF defaults to a deterministic **mock** admin store. The gateway admin API is still
+  contract-planned; `ADMIN_API_MODE=live` is a proxy skeleton, not a verified integration.
+- Capabilities, models, users, operations, and settings are wired through TanStack Query and
+  the BFF. The old dummy pages and `features/dashboard` are removed.
+- There is no production deployment yet. The CI deploy job is gated by
+  `DEPLOY_ENABLED` and still contains a placeholder.
 
 ## Sources of truth
 
-1. `docs/requirements/` — one file per functional/non-functional requirement.
-2. `DESIGN.md` — tokens, shadcn principles, component rules, accessibility overrides.
-3. `docs/03-architecture.md` — feature boundaries, BFF, data flow.
-4. `docs/02-backend-contract-analysis.md` — what the gateway actually exposes.
-5. `docs/06-api-integration.md` — canonical BFF payloads and error handling.
-6. `docs/10-ci-cd-and-environments.md` — branch and deployment policy.
-7. `docs/14-cloudflare-access.md` — Cloudflare Access/Tunnel setup and identity model.
+1. `docs/requirements/` — one file per requirement.
+2. `DESIGN.md` — tokens, shadcn principles, visual rules.
+3. `docs/03-architecture.md` — domain structure, BFF, boundaries.
+4. `docs/06-api-integration.md` — canonical admin payloads/errors/pagination.
+5. `docs/02-backend-contract-analysis.md` — real gateway status and gaps.
+6. `docs/10-ci-cd-and-environments.md` — branch/CI/deploy policy.
+7. `docs/14-cloudflare-access.md` — Access/Tunnel setup.
 
-Where docs disagree, the requirement file wins for behavior, `DESIGN.md` for visuals, and
-`docs/03-architecture.md` for structure. Fix the docs in the same PR.
+Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals,
+`docs/03-architecture.md` for structure. Fix docs in the same change.
 
-## Current commands
+## Commands
 
-- `npm install` — installs from the committed lockfile.
-- `npm run dev` — Vite dev server on port 5173.
-- `npm run lint` — ESLint; required on PRs to `development`/`master`.
-- `npm run build` — `tsc --noEmit` + production Vite build.
-- `npm run typecheck` — TypeScript only.
-- `npm run preview` — preview the production build.
+- `npm install` — install from the lockfile.
+- `npm run dev` — Vite (5173) + BFF (8787); mock store by default.
+- `npm run dev:web` / `npm run dev:api` — run one side.
+- `npm run lint` — ESLint; CI PR gate.
+- `npm run test` — Vitest BFF contract tests.
+- `npm run typecheck` — web + BFF.
+- `npm run build` — typecheck + Vite build + server build.
+- `npm start` — serve `dist/` + API from the built BFF.
+- `npm run preview` — static Vite preview only (no API proxy).
 
-No test/E2E scripts exist yet. The CI build job intentionally does not upload artifacts or use
-`actions/cache`. Do not invent feature APIs; the admin routes are not implemented in the
-gateway checkout.
+## Architecture rules
 
-## Current app conventions
+- `src/features/<domain>` is a product domain with a public `index.ts`; subfeatures stay
+  inside it. Do not create a domain per ability kind or per endpoint.
+- `src/platform` holds auth, the typed API client, and the Query client.
+- `shared/admin-api` is the runtime-agnostic Zod contract; both browser and server import it.
+- `server` is the only admin-secret holder and the only component allowed to call
+  `/internal/admin/*`.
+- Browser data goes through the typed client and Query hooks; no `fetch` in components/pages.
+- Forms use RHF + Zod; mutations are pessimistic for registry and money paths.
+- Use semantic design tokens only; no raw colors in domain code.
+- Every page needs loading/empty/error states.
 
-- Tokens only: no raw hex/rgb/oklch in feature code; use semantic classes.
-- Reusable primitives live in `src/components/ui`; shared compositions in
-  `src/components/common` and `src/components/layout`.
-- Feature slices live in `src/features/<name>`; routes are thin and assembled in
-  `src/app/router.tsx`.
-- Authentication is Cloudflare Access at the edge. Never add an app-owned OIDC flow, a
-  session token, a secret, or a real admin call to the browser. Local `import.meta.env.DEV`
-  may use `VITE_DEV_AUTH_EMAIL`; production builds must always use Access.
-- Every new page needs loading/empty/error states before it is considered done.
+## Authentication and secrets
+
+- Cloudflare Access is the edge identity. Production requests carry
+  `Cf-Access-Jwt-Assertion`; the BFF verifies issuer/audience/JWKS and derives the actor email.
+- Local dev uses `VITE_DEV_AUTH_EMAIL` and the BFF `DEV_ACTOR_EMAIL` fallback. Production
+  startup rejects mock admin mode or missing Access/admin secrets.
+- Never put `ADMIN_API_SECRET`, `CF_ACCESS_AUD` validation secrets, session tokens, or raw
+  UIDs in the browser, logs, fixtures, or commits.
 
 ## Branch and change policy
 
 - `master` = production deployment branch. Never push directly.
-- `development` = integration branch. Feature PRs target it; pushes currently run a build
-  check only (staging deploy is not wired).
+- `development` = integration branch. Feature PRs target it; pushes currently build only.
 - Work branches: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`, `hotfix/<slug>`.
 - Conventional Commits, squash merge, one logical change per PR.
-- Never commit secrets, `.env` files, session data, or customer identifiers.
-
-## Boundaries
-
-- This repo is the **web console + BFF** only. The Go gateway lives in another repository;
-  do not implement gateway behavior here.
-- The browser must never receive `ADMIN_API_SECRET`, `INTERNAL_API_SECRET`, Access validation
-  secrets, or raw session tokens.
-- Do not invent admin API endpoints, response fields, or metrics. If the contract is
-  missing, add it to `docs/12-risks-and-open-questions.md` and mock it explicitly.
+- Never commit secrets, `.env` files, session data, or real customer identifiers.

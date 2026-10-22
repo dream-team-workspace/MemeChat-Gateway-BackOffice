@@ -133,9 +133,8 @@ Rules:
    the server must not mix `ADMIN_API_SECRET` and `INTERNAL_API_SECRET`.
 6. **Overview is composition-only.** It may consume public summary hooks from capabilities and
    models; it must not define duplicate query keys or a second source of truth.
-7. **Auth is platform infrastructure, not a product domain.** The current
-   `features/auth` folder is acceptable while it is small; move it to `platform/auth` when
-   the BFF and Access validation land.
+7. **Auth is platform infrastructure, not a product domain.** Access identity, the typed
+   API client, and the Query client live under `platform/`, not `features/`.
 
 A useful scale test: adding a new capability kind or provider should require **zero new
 top-level domains**. Adding a global audit feed, user directory, or aggregate stats endpoint
@@ -236,12 +235,13 @@ would justify promoting a subfeature to a domain.
 └─ package.json
 ~~~
 
-**Current vs target:** the current code is a subset of this tree. `features/dashboard` still
-exists and should become `features/overview`; `features/auth` still holds the Access code;
-`features/capabilities` has not yet split into `registry/routing/audit` subfolders; and
-`shared/`, `server/`, and `platform/` are target layers. Do not perform the whole
-restructure before the BFF exists; apply the renames and subfolders as the relevant features
-land.
+**Current implementation (2026-10-23):** `features/dashboard` has been removed in favor
+of `features/overview`; auth moved to `platform/auth`; `platform/api`,
+`platform/query`, `shared/admin-api`, and `server/` are implemented. The capabilities
+domain has separate api/query/mutation modules and routing/audit pages; its remaining
+components are still colocated under `components/` rather than the target
+`registry/routing/audit` subfolders. Models, users, operations, and settings are wired to the
+BFF. Live mode is a proxy skeleton; the gateway admin API is still contract-planned.
 
 
 

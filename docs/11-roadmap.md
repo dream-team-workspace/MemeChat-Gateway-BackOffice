@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Phase 0 complete; Phase 1 UI template in progress |
+| Status | Phase 0 complete; Phase 1 console + mock BFF implemented |
 | Planning complete | 2026-10-21 |
-| Current branch | `feature/template` |
+| Current branch | `feature/implementation` |
 | Delivery model | Vertical slices, each demoable |
 | Estimates | Relative (S/M/L), not dates |
 
@@ -40,7 +40,7 @@ Exit criteria:
 
 Goal: a running shell with a real design system, a real BFF skeleton, and a mock contract.
 
-**Implemented on feature/template (2026-10-21, updated 2026-10-22):**
+**Implemented on feature/implementation (2026-10-21 → 2026-10-23):**
 
 - Vite + React 19 + TypeScript, Tailwind v4, semantic tokens, Open Sans.
 - Code-based TanStack Router with protected routes and async Cloudflare Access session guards.
@@ -48,20 +48,22 @@ Goal: a running shell with a real design system, a real BFF skeleton, and a mock
 - Responsive app shell: desktop sidebar, mobile drawer with focus trap, sticky topbar,
   environment badge, skip link.
 - Pinned Settings at the sidebar bottom, plus environment and operator menu.
-- Dummy Overview, Capabilities, Models, Users, Operations, and Settings pages.
+- Domain-oriented Overview, Capabilities (list/configuration/routing/audit/kill switch),
+  Models, Users (lookup/ledger/usage/grant), Operations, and Settings pages.
+- Hono BFF with Cloudflare Access JWT validation, deterministic mock store, live proxy
+  skeleton, request IDs, security headers, and static serving.
+- Shared Zod admin contract and TanStack Query/typed API client used by browser and BFF.
 - Light/dark/system theme, persisted with no-flash boot script.
 - Build and typecheck pass; axe clean on core screens; no overflow at 360–1440.
-- ESLint 10 + typescript-eslint; `npm run lint` clean.
+- ESLint 10 + typescript-eslint; `npm run lint` clean; 7 Vitest BFF contract tests pass.
 - GitHub Actions CI: lint on PRs, clean build on pushes, gated deploy placeholder on master.
 
 **Still required for Phase 1 exit:**
 
-- BFF skeleton with Access JWT validation, mock API store.
-- Shared Zod schemas and MSW fixtures.
-- Prettier, Vitest/Playwright; CI is wired but not yet exercised on GitHub.
-- Apply the domain refinements in [03-architecture.md](03-architecture.md) §12.2:
-  `dashboard` → `overview`, `shared/admin-api`, capabilities subfeatures, boundary lint.
-- Docker/deploy skeleton.
+- MSW fixtures and Playwright/component tests; Vitest BFF tests are in place.
+- Boundary lint and the final capability component subfolders.
+- Live gateway integration once the admin routes exist; current live mode is unverified.
+- Docker/deploy skeleton and a real CI deploy step.
 
 Deliverables:
 
@@ -74,17 +76,17 @@ Deliverables:
    - Apply DESIGN.md tokens, semantic extensions, light/dark boot.
    - Build common components: PageHeader, DataTable, ConfirmDialog, EmptyState, ErrorState,
      StatusBadge, CopyButton, JsonViewer, DiffView.
-3. **BFF skeleton**
-   - Hono app, config validation, health, security headers, request IDs, error envelope.
-   - Mock mode with deterministic store; live mode adapter stub.
-   - Access JWT validation interface with a local dev identity; production always uses Access.
+3. **BFF**
+   - Hono app, config validation, health, security headers, request IDs, error envelope. **(done)**
+   - Mock mode with deterministic store; live mode adapter stub. **(mock done; live unverified)**
+   - Access JWT validation interface with a local dev identity; production always uses Access. **(done)**
 4. **App shell**
    - Router, auth guard, sidebar/topbar, environment badge, 403/404/error routes.
    - Login page and session menu.
 5. **Contract**
-   - Shared Zod schemas for all admin entities.
-   - MSW handlers + fixtures for every endpoint.
-   - Contract tests.
+   - Shared Zod schemas for all admin entities. **(done)**
+   - MSW handlers + fixtures for every endpoint. **(pending)**
+   - Contract tests. **(BFF mock tests done; client/contract fixtures pending)**
 6. **CI**
    - `ci.yml` with lint on PRs and clean build on pushes. **(done)**
    - Branch protection, Dependabot, secret scan, E2E. **(pending)**
@@ -96,7 +98,7 @@ Exit criteria:
 
 - `npm run dev` shows the shell; login/logout works with Cloudflare Access. **(Access flow done; dashboard app/policy pending)**
 - Design review passes light/dark, keyboard, axe. **(core screens done)**
-- Every route renders loading/empty/error states with mock data. **(not yet)**
+- Every route renders loading/empty/error states with mock data. **(core routes done)**
 - CI workflow is present; local lint/build pass. GitHub Actions execution is pending the
   branch being pushed and a PR being opened. **(workflow added)**
 - No secret in the bundle scan. **(no secrets present; scan not automated yet)**
