@@ -1,6 +1,12 @@
 import { useState } from "react";
 
-import { modelInputSchema, type Capability, type Model } from "@shared/admin-api";
+import {
+  modelInputSchema,
+  type Capability,
+  type Model,
+  type ProviderModel,
+  type ProviderStatus,
+} from "@shared/admin-api";
 
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -44,27 +50,125 @@ function fromModel(model: Model): Draft {
   };
 }
 
+function modelDisplayName(model: ProviderModel) {
+  return (
+    model.displayName ??
+    model.id
+      .split(/[-_.]/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
+}
+
+function inferTier(capabilityId: string) {
+  if (capabilityId === "chat.premium") return "premium";
+  if (capabilityId.startsWith("embeddings.")) return "balanced";
+  return "standard";
+}
+
+function inferProviderId(model: Model | null, providers: ProviderStatus[]) {
+  if (model) {
+    const byModel = providers.find((provider) =>
+      provider.models?.some((candidate) => candidate.id === model.id),
+    );
+    if (byModel) return byModel.id;
+    if (model.capabilityId) {
+      const byCapability = providers.find((provider) =>
+        provider.capabilities?.includes(model.capabilityId ?? ""),
+      );
+      if (byCapability) return byCapability.id;
+    }
+  }
+  return providers.find((provider) => (provider.models?.length ?? 0) > 0)?.id ?? "";
+}
+
 export function ModelFormDialog({
   open,
   onOpenChange,
   model,
   capabilities,
+  providers,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   model: Model | null;
   capabilities: Capability[];
+  providers: ProviderStatus[];
 }) {
+  const [providerId, setProviderId] = useState(() =>
+    inferProviderId(model, providers),
+  );
   const [draft, setDraft] = useState<Draft>(model ? fromModel(model) : emptyDraft());
   const [error, setError] = useState<string | null>(null);
   const mutation = useUpsertModel();
+
+  const selectedProvider = providers.find((provider) => provider.id === providerId);
+  const providerModels = selectedProvider?.models ?? [];
+  const selectedModel = providerModels.find((candidate) => candidate.id === draft.id);
+  const modelOptions =
+    draft.id && !selectedModel
+      ? [...providerModels, { id: draft.id, capability: draft.capabilityId }]
+      : providerModels;
+
+  const compatibleCapabilities = capabilities.filter(
+    (capability) =>
+      !selectedProvider?.capabilities ||
+      selectedProvider.capabilities.includes(capability.id),
+  );
+  const mappedCapability = selectedModel?.capability;
+  const capabilityOptions = mappedCapability
+    ? compatibleCapabilities.filter((capability) => capability.id === mappedCapability)
+    : compatibleCapabilities;
 
   function patch(next: Partial<Draft>) {
     setDraft((current) => ({ ...current, ...next }));
     setError(null);
   }
 
+  function applyModel(providerModel: ProviderModel) {
+    patch({
+      id: providerModel.id,
+      displayName: modelDisplayName(providerModel),
+      capabilityId: providerModel.capability,
+      tier: inferTier(providerModel.capability),
+    });
+  }
+
+  function selectProvider(nextProviderId: string) {
+    const provider = providers.find((item) => item.id === nextProviderId);
+    setProviderId(nextProviderId);
+    const defaultModel =
+      provider?.models?.find((candidate) => candidate.default) ??
+      provider?.models?.[0];
+    if (defaultModel) {
+      setDraft({
+        ...emptyDraft(),
+        id: defaultModel.id,
+        displayName: modelDisplayName(defaultModel),
+        capabilityId: defaultModel.capability,
+        tier: inferTier(defaultModel.capability),
+      });
+      setError(null);
+    } else {
+      setDraft(emptyDraft());
+    }
+  }
+
   function save() {
+    if (!draft.id.trim()) {
+      setError("Select a model from the provider catalog.");
+      return;
+    }
+    if (!selectedProvider || !selectedModel) {
+      setError("The selected model is not in this provider's catalog.");
+      return;
+    }
+    if (draft.capabilityId !== selectedModel.capability) {
+      setError("Capability must match the selected model's catalog mapping.");
+      return;
+    }
+
     const parsed = modelInputSchema.safeParse({
       displayName: draft.displayName,
       tier: draft.tier,
@@ -76,10 +180,6 @@ export function ModelFormDialog({
 
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the form values.");
-      return;
-    }
-    if (!draft.id.trim()) {
-      setError("Model ID is required.");
       return;
     }
 
@@ -99,30 +199,61 @@ export function ModelFormDialog({
         if (!mutation.isPending) onOpenChange(next);
       }}
       title={model ? "Edit model" : "Add model"}
-      description="The app model picker. IDs are path keys and cannot be renamed after creation."
+      description="Provider catalogs determine the model list; each model maps to exactly one capability."
       footer={
         <>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             Cancel
           </Button>
-          <Button type="button" onClick={save} disabled={mutation.isPending}>
+          <Button type="button" onClick={save} disabled={mutation.isPending || providers.length === 0}>
             {mutation.isPending ? "Saving…" : "Save model"}
           </Button>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5 sm:col-span-2">
-          <label htmlFor="model-id" className="text-xs font-semibold">Model ID</label>
-          <Input
-            id="model-id"
-            value={draft.id}
-            onChange={(event) => patch({ id: event.target.value })}
-            readOnly={Boolean(model)}
-            className="font-mono text-xs"
-            placeholder="deepseek-v4-flash"
-          />
+        <div className="space-y-1.5">
+          <label htmlFor="model-provider" className="text-xs font-semibold">Provider</label>
+          <Select
+            id="model-provider"
+            value={providerId}
+            onChange={(event) => selectProvider(event.target.value)}
+            disabled={Boolean(model) || providers.length === 0}
+          >
+            <option value="">Select provider</option>
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.displayName}
+              </option>
+            ))}
+          </Select>
         </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="model-id" className="text-xs font-semibold">Model</label>
+          {model ? (
+            <Input id="model-id" value={draft.id} readOnly className="font-mono text-xs" />
+          ) : (
+            <Select
+              id="model-id"
+              value={draft.id}
+              onChange={(event) => {
+                const option = providerModels.find((candidate) => candidate.id === event.target.value);
+                if (option) applyModel(option);
+              }}
+              disabled={!selectedProvider}
+            >
+              <option value="">Select model</option>
+              {modelOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.id}</option>
+              ))}
+            </Select>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Catalog: {selectedProvider?.displayName ?? "select a provider"}.
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <label htmlFor="model-name" className="text-xs font-semibold">Display name</label>
           <Input id="model-name" value={draft.displayName} onChange={(event) => patch({ displayName: event.target.value })} />
@@ -133,12 +264,22 @@ export function ModelFormDialog({
         </div>
         <div className="space-y-1.5">
           <label htmlFor="model-capability" className="text-xs font-semibold">Capability</label>
-          <Select id="model-capability" value={draft.capabilityId} onChange={(event) => patch({ capabilityId: event.target.value })}>
+          <Select
+            id="model-capability"
+            value={draft.capabilityId}
+            onChange={(event) => patch({ capabilityId: event.target.value })}
+            disabled={Boolean(mappedCapability)}
+          >
             <option value="">None</option>
-            {capabilities.map((capability) => (
+            {(capabilityOptions.length > 0 ? capabilityOptions : compatibleCapabilities).map((capability) => (
               <option key={capability.id} value={capability.id}>{capability.id}</option>
             ))}
           </Select>
+          <p className="text-[11px] text-muted-foreground">
+            {mappedCapability
+              ? "Derived from the selected model."
+              : "Select a catalogue model to derive the capability."}
+          </p>
         </div>
         <div className="space-y-1.5">
           <label htmlFor="model-sort" className="text-xs font-semibold">Sort order</label>

@@ -16,7 +16,7 @@ export function useUpdateCapability(id: string) {
     onSuccess: (capability) => {
       queryClient.setQueryData(capabilityKeys.detail(id), capability);
       void queryClient.invalidateQueries({ queryKey: capabilityKeys.all });
-      void queryClient.invalidateQueries({ queryKey: capabilityKeys.audit(id) });
+      void queryClient.invalidateQueries({ queryKey: capabilityKeys.auditPrefix(id) });
     },
   });
 }
@@ -28,7 +28,7 @@ export function useToggleCapability(id: string) {
     onSuccess: (capability) => {
       queryClient.setQueryData(capabilityKeys.detail(id), capability);
       void queryClient.invalidateQueries({ queryKey: capabilityKeys.all });
-      void queryClient.invalidateQueries({ queryKey: capabilityKeys.audit(id) });
+      void queryClient.invalidateQueries({ queryKey: capabilityKeys.auditPrefix(id) });
     },
   });
 }
@@ -40,7 +40,7 @@ export function useReplaceProviders(id: string) {
     onSuccess: (capability: Capability) => {
       queryClient.setQueryData(capabilityKeys.detail(id), capability);
       void queryClient.invalidateQueries({ queryKey: capabilityKeys.all });
-      void queryClient.invalidateQueries({ queryKey: capabilityKeys.audit(id) });
+      void queryClient.invalidateQueries({ queryKey: capabilityKeys.auditPrefix(id) });
     },
   });
 }

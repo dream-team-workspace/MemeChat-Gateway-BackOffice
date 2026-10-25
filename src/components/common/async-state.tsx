@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertCircle, Inbox } from "lucide-react";
+import { AlertCircle, Inbox, Unplug } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +35,33 @@ export function ErrorState({
           Retry
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Shown when the gateway has not shipped a resource the console is ready to
+ * consume. It is a neutral, non-error state so operators know the difference
+ * between "nothing recorded" and "not available yet".
+ */
+export function PendingGatewayState({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-5 py-12 text-center">
+      <span className="grid size-9 place-items-center rounded-full bg-warning/10 text-warning-foreground">
+        <Unplug className="size-4" />
+      </span>
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        {description ? (
+          <p className="mt-1 max-w-lg text-xs leading-5 text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

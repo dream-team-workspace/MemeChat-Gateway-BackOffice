@@ -15,10 +15,10 @@ export function capabilityQueryOptions(id: string) {
   });
 }
 
-export function capabilityAuditQueryOptions(id: string) {
+export function capabilityAuditQueryOptions(id: string, cursor?: string) {
   return queryOptions({
-    queryKey: capabilityKeys.audit(id),
-    queryFn: () => capabilitiesApi.audit(id),
+    queryKey: capabilityKeys.auditPage(id, cursor),
+    queryFn: () => capabilitiesApi.audit(id, 50, cursor),
     enabled: Boolean(id),
   });
 }

@@ -1,33 +1,40 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  AppWindow,
   Boxes,
   Cpu,
   LayoutDashboard,
+  Plug,
   Settings2,
   Users,
   X,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 
 import { BrandMark } from "@/components/common/brand-mark";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { systemApi, systemKeys } from "@/platform/api/system";
-import { UserMenu } from "@/components/layout/user-menu";
 
 type NavItem = {
   label: string;
-  to: "/" | "/capabilities" | "/models" | "/users" | "/operations";
+  to:
+    | "/"
+    | "/capabilities"
+    | "/app-clients"
+    | "/models"
+    | "/providers"
+    | "/users"
+    | "/operations";
   icon: LucideIcon;
 };
 
 const operateNav: NavItem[] = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
   { label: "Capabilities", to: "/capabilities", icon: Boxes },
+  { label: "App clients", to: "/app-clients", icon: AppWindow },
   { label: "Models", to: "/models", icon: Cpu },
+  { label: "Providers", to: "/providers", icon: Plug },
 ];
 
 const supportNav: NavItem[] = [{ label: "Users", to: "/users", icon: Users }];
@@ -49,8 +56,6 @@ function isActive(pathname: string, to: string) {
 
 export function AppSidebar({ mobile = false, onClose, onNavigate }: AppSidebarProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
-  const environment = meta.data?.environment ?? "development";
 
   const renderNav = (items: NavItem[]) =>
     items.map((item) => {
@@ -145,34 +150,6 @@ export function AppSidebar({ mobile = false, onClose, onNavigate }: AppSidebarPr
             <span className="ml-auto size-1.5 rounded-full bg-primary" />
           ) : null}
         </Link>
-
-        <div className="mt-2 rounded-lg border border-sidebar-border bg-background/60 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Environment
-            </span>
-            <Badge variant="outline" className="gap-1.5 px-2 py-0">
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  environment === "production"
-                    ? "bg-success"
-                    : environment === "staging"
-                      ? "bg-warning"
-                      : "bg-info",
-                )}
-              />
-              {environment.charAt(0).toUpperCase() + environment.slice(1)}
-            </Badge>
-          </div>
-          <p className="mt-2 truncate font-mono text-[10px] text-muted-foreground">
-            {meta.data?.adminApiMode === "mock" ? "BFF mock store" : "api.dev.memechat.app"}
-          </p>
-        </div>
-
-        <div className="mt-3">
-          <UserMenu />
-        </div>
       </div>
     </aside>
   );

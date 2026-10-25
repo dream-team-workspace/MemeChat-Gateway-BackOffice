@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 const titles: Record<string, string> = {
   "/": "Overview",
   "/capabilities": "Capabilities",
+  "/app-clients": "App clients",
   "/models": "Models",
+  "/providers": "Providers",
   "/users": "Users",
   "/operations": "Operations",
   "/settings": "Settings",
@@ -19,6 +21,7 @@ const titles: Record<string, string> = {
 
 function titleFor(pathname: string) {
   if (pathname.startsWith("/capabilities/")) return "Capabilities";
+  if (pathname.startsWith("/app-clients/")) return "App clients";
   if (pathname.startsWith("/users/")) return "Users";
   return titles[pathname] ?? "BackOffice";
 }

@@ -30,6 +30,20 @@ export function getErrorMessage(error: unknown) {
   return "Unexpected error.";
 }
 
+/**
+ * True when the gateway does not expose a resource yet (unknown route or an
+ * explicit NOT_IMPLEMENTED). The console uses this to show a pending state
+ * instead of an error while a gateway change rolls out.
+ */
+export function isGatewayFeatureMissing(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    (error.status === 404 ||
+      error.status === 501 ||
+      error.code === "NOT_IMPLEMENTED")
+  );
+}
+
 export async function apiRequest<T>(
   path: string,
   schema: z.ZodType<T>,

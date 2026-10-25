@@ -21,6 +21,7 @@ import {
 import { capabilitiesQueryOptions } from "@/features/capabilities/queries/capabilities.queries";
 import { ModelFormDialog } from "@/features/models/components/model-form-dialog";
 import { modelsQueryOptions } from "@/features/models/queries/models.queries";
+import { providersQueryOptions } from "@/features/providers/queries/providers.queries";
 import { getErrorMessage } from "@/platform/api";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ export function ModelsPage() {
   const [editing, setEditing] = useState<Model | null>(null);
   const models = useQuery(modelsQueryOptions);
   const capabilities = useQuery(capabilitiesQueryOptions);
+  const providers = useQuery(providersQueryOptions);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -78,7 +80,7 @@ export function ModelsPage() {
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" aria-label="Search models" className="pl-9" />
+          <Input id="model-search" name="model-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" aria-label="Search models" className="pl-9" />
         </div>
         <Badge variant="outline">{models.data?.items.length ?? 0} models · BFF API</Badge>
       </div>
@@ -86,7 +88,7 @@ export function ModelsPage() {
       <Card className="mt-4 overflow-hidden">
         <CardHeader>
           <CardTitle>Model catalog</CardTitle>
-          <CardDescription>Changes are applied through the mock/live admin contract.</CardDescription>
+          <CardDescription>Changes are applied through the gateway admin API.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {models.isLoading ? (
@@ -146,6 +148,7 @@ export function ModelsPage() {
           onOpenChange={setDialogOpen}
           model={editing}
           capabilities={capabilities.data?.items ?? []}
+          providers={providers.data?.items ?? []}
         />
       ) : null}
     </div>

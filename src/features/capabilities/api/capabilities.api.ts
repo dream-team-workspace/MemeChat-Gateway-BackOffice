@@ -31,12 +31,20 @@ export const capabilitiesApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  audit: (id: string, limit = 50) =>
-    apiRequest(path(id) + "/audit?limit=" + String(limit), auditListSchema),
+  audit: (id: string, limit = 50, cursor?: string) =>
+    apiRequest(
+      path(id) +
+        "/audit?limit=" +
+        String(limit) +
+        (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""),
+      auditListSchema,
+    ),
 };
 
 export const capabilityKeys = {
   all: ["capabilities"] as const,
   detail: (id: string) => ["capabilities", id] as const,
-  audit: (id: string) => ["capabilities", id, "audit"] as const,
+  auditPrefix: (id: string) => ["capabilities", id, "audit"] as const,
+  auditPage: (id: string, cursor?: string) =>
+    ["capabilities", id, "audit", cursor ?? "first"] as const,
 };

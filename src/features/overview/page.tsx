@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
+  AppWindow,
   ArrowUpRight,
   Boxes,
   CreditCard,
   Cpu,
   RefreshCw,
-  Search,
-  Server,
 } from "lucide-react";
 
 import { ErrorState, LoadingRows } from "@/components/common/async-state";
@@ -17,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { appClientsQueryOptions } from "@/features/app-clients/queries/app-clients.queries";
 import { capabilitiesQueryOptions } from "@/features/capabilities/queries/capabilities.queries";
 import { modelsQueryOptions } from "@/features/models/queries/models.queries";
 import { systemApi, systemKeys } from "@/platform/api/system";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 export function OverviewPage() {
   const capabilities = useQuery(capabilitiesQueryOptions);
   const models = useQuery(modelsQueryOptions);
+  const appClients = useQuery(appClientsQueryOptions);
   const health = useQuery({ queryKey: systemKeys.health, queryFn: systemApi.health });
   const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
 
@@ -34,6 +35,8 @@ export function OverviewPage() {
   const enabled = capabilityItems.filter((item) => item.enabled).length;
   const disabled = capabilityItems.length - enabled;
   const modelItems = models.data?.items ?? [];
+  const clientItems = appClients.data?.items ?? [];
+  const enabledClients = clientItems.filter((client) => client.enabled).length;
   const gatewayHealthy = health.data?.status === "ok";
   const isLoading = capabilities.isLoading || models.isLoading || health.isLoading;
 
@@ -51,9 +54,10 @@ export function OverviewPage() {
               onClick={() => {
                 void capabilities.refetch();
                 void models.refetch();
+                void appClients.refetch();
                 void health.refetch();
               }}
-              disabled={capabilities.isFetching || models.isFetching}
+              disabled={capabilities.isFetching || models.isFetching || appClients.isFetching}
             >
               <RefreshCw className={cn((capabilities.isFetching || models.isFetching) && "animate-spin")} />
               Refresh
@@ -105,8 +109,18 @@ export function OverviewPage() {
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Active capabilities" value={String(enabled)} caption={disabled + " disabled"} icon={Boxes} tone="info" />
             <StatCard label="Models in catalog" value={String(modelItems.length)} caption="App-facing picker entries" icon={Cpu} />
-            <StatCard label="Registry entries" value={String(capabilityItems.length)} caption="Loaded from the BFF" icon={Server} tone="success" />
-            <StatCard label="Environment" value={meta.data?.environment ?? "—"} caption={meta.data?.adminApiMode === "mock" ? "Mock admin API" : "Live admin API"} icon={CreditCard} tone="warning" />
+            <StatCard
+              label="Integrated clients"
+              value={appClients.isLoading ? "…" : appClients.isError ? "—" : String(clientItems.length)}
+              caption={
+                appClients.isError
+                  ? "Client list unavailable"
+                  : enabledClients + " enabled · apps connected to the gateway"
+              }
+              icon={AppWindow}
+              tone="success"
+            />
+            <StatCard label="Environment" value={meta.data?.environment ?? "—"} caption="Live admin API" icon={CreditCard} tone="warning" />
           </div>
 
           <div className="mt-6 grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
@@ -143,23 +157,6 @@ export function OverviewPage() {
             <div className="min-w-0 space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Quick actions</CardTitle>
-                  <CardDescription>Common operator paths</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-1">
-                  <Link to="/capabilities" className="flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-accent/50">
-                    <span className="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><Boxes className="size-4" /></span>
-                    <span className="text-xs font-semibold">Open registry</span>
-                  </Link>
-                  <Link to="/users" className="flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-accent/50">
-                    <span className="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground"><Search className="size-4" /></span>
-                    <span className="text-xs font-semibold">Look up a user</span>
-                  </Link>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
                   <CardTitle>Environment</CardTitle>
                   <CardDescription>Console boundary</CardDescription>
                 </CardHeader>
@@ -175,7 +172,7 @@ export function OverviewPage() {
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">Admin API</span>
-                    <span className="font-medium">{meta.data?.adminApiMode === "mock" ? "Mock" : "Live"}</span>
+                    <span className="font-medium">Live</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">Console</span>

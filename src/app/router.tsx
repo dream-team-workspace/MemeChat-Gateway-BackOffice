@@ -5,6 +5,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 
+import { AppClientDetailPage, AppClientsPage } from "@/features/app-clients";
 import { AppLayout } from "@/app/layouts/app-layout";
 import { RootLayout } from "@/app/layouts/root-layout";
 import { NotFoundPage } from "@/app/not-found-page";
@@ -18,6 +19,7 @@ import {
 import { ModelsPage } from "@/features/models";
 import { OperationsPage } from "@/features/operations";
 import { OverviewPage } from "@/features/overview";
+import { ProvidersPage } from "@/features/providers";
 import { SettingsPage } from "@/features/settings";
 import {
   UserDetailLayout,
@@ -91,10 +93,28 @@ const capabilityAuditRoute = createRoute({
   component: CapabilityAuditPage,
 });
 
+const appClientsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/app-clients",
+  component: AppClientsPage,
+});
+
+const appClientRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/app-clients/$clientId",
+  component: AppClientDetailPage,
+});
+
 const modelsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/models",
   component: ModelsPage,
+});
+
+const providersRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/providers",
+  component: ProvidersPage,
 });
 
 const usersRoute = createRoute({
@@ -154,7 +174,10 @@ const routeTree = rootRoute.addChildren([
       capabilityRoutingRoute,
       capabilityAuditRoute,
     ]),
+    appClientsRoute,
+    appClientRoute,
     modelsRoute,
+    providersRoute,
     usersRoute,
     userRoute.addChildren([
       userIndexRoute,

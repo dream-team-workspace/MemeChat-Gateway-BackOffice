@@ -3,17 +3,18 @@ import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 
-import type { Capability, ProviderRoute } from "@shared/admin-api";
+import type { Capability, ProviderRoute, ProviderStatus } from "@shared/admin-api";
 
 import { ErrorState, LoadingRows } from "@/components/common/async-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useReplaceProviders } from "@/features/capabilities/mutations/capabilities.mutations";
 import { capabilityQueryOptions } from "@/features/capabilities/queries/capabilities.queries";
+import { providersQueryOptions } from "@/features/providers/queries/providers.queries";
 import { getErrorMessage } from "@/platform/api";
 
 type RouteDraft = {
@@ -34,11 +35,17 @@ function toDraft(route: ProviderRoute): RouteDraft {
   };
 }
 
-function newRoute(): RouteDraft {
+function newRoute(provider?: ProviderStatus, capabilityId?: string): RouteDraft {
+  const model =
+    provider?.models?.find(
+      (candidate) => candidate.capability === capabilityId && candidate.default,
+    ) ??
+    provider?.models?.find((candidate) => candidate.capability === capabilityId) ??
+    provider?.models?.[0];
   return {
     key: crypto.randomUUID(),
-    provider: "",
-    model: "",
+    provider: provider?.id ?? "",
+    model: model?.id ?? "",
     enabled: true,
     configText: "{}",
   };
@@ -68,22 +75,59 @@ export function CapabilityRoutingPage() {
     );
   }
 
-  return <CapabilityRoutingEditor key={data.revision} capability={data} />;
+  return <CapabilityRoutingEditor key={data.id} capability={data} />;
 }
 
 function CapabilityRoutingEditor({ capability }: { capability: Capability }) {
   const mutation = useReplaceProviders(capability.id);
+  const providers = useQuery(providersQueryOptions);
   const [routes, setRoutes] = useState<RouteDraft[]>(() =>
     capability.providers.map(toDraft),
   );
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
+  const providerItems = providers.data?.items ?? [];
+  const compatibleProviders = providerItems.filter(
+    (provider) =>
+      !provider.capabilities || provider.capabilities.includes(capability.id),
+  );
+
+  function providerFor(id: string) {
+    return providerItems.find((provider) => provider.id === id);
+  }
+
+  function modelsFor(providerId: string, current: string) {
+    const provider = providerFor(providerId);
+    const models = (provider?.models ?? []).filter(
+      (model) => model.capability === capability.id,
+    );
+    return current && !models.some((model) => model.id === current)
+      ? [...models, { id: current, capability: capability.id }]
+      : models;
+  }
+
   function updateRoute(key: string, patch: Partial<RouteDraft>) {
     setRoutes((current) =>
       current.map((route) => (route.key === key ? { ...route, ...patch } : route)),
     );
     setSaved(null);
+  }
+
+  function updateProvider(key: string, providerId: string) {
+    const provider = providerFor(providerId);
+    const model =
+      provider?.models?.find(
+        (candidate) =>
+          candidate.capability === capability.id && candidate.default,
+      ) ??
+      provider?.models?.find(
+        (candidate) => candidate.capability === capability.id,
+      );
+    updateRoute(key, {
+      provider: providerId,
+      model: model?.id ?? "",
+    });
   }
 
   function move(index: number, direction: -1 | 1) {
@@ -121,6 +165,18 @@ function CapabilityRoutingEditor({ capability }: { capability: Capability }) {
     for (const route of routes) {
       if (!route.provider.trim() || !route.model.trim()) {
         setSaveError("Every route needs a provider and model.");
+        return;
+      }
+      const provider = providerFor(route.provider);
+      if (!provider || (provider.capabilities && !provider.capabilities.includes(capability.id))) {
+        setSaveError("Provider " + route.provider + " cannot route " + capability.id + ".");
+        return;
+      }
+      const model = provider.models?.find((candidate) => candidate.id === route.model);
+      if (!model || model.capability !== capability.id) {
+        setSaveError(
+          "Model " + route.model + " is not catalogued for " + capability.id + " on " + provider.displayName + ".",
+        );
         return;
       }
       let config: unknown;
@@ -162,7 +218,8 @@ function CapabilityRoutingEditor({ capability }: { capability: Capability }) {
           <div>
             <CardTitle>Provider routing</CardTitle>
             <CardDescription>
-              Tried in order. Disabled routes are skipped. At least one must remain enabled.
+              Tried in order. Providers are limited to catalogs containing a model for {capability.id};
+              models are limited to that capability. Disabled routes are skipped.
             </CardDescription>
           </div>
           <Badge variant="outline">{routes.length} routes</Badge>
@@ -193,11 +250,39 @@ function CapabilityRoutingEditor({ capability }: { capability: Capability }) {
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <label htmlFor={"provider-" + route.key} className="text-xs font-semibold">Provider</label>
-                  <Input id={"provider-" + route.key} value={route.provider} onChange={(event) => updateRoute(route.key, { provider: event.target.value })} placeholder="e.g. opencode" />
+                  <Select
+                    id={"provider-" + route.key}
+                    value={route.provider}
+                    onChange={(event) => updateProvider(route.key, event.target.value)}
+                  >
+                    <option value="">Select provider</option>
+                    {compatibleProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.displayName}
+                      </option>
+                    ))}
+                    {route.provider && !compatibleProviders.some((provider) => provider.id === route.provider) ? (
+                      <option value={route.provider}>
+                        {route.provider} (unsupported for {capability.id})
+                      </option>
+                    ) : null}
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor={"model-" + route.key} className="text-xs font-semibold">Model</label>
-                  <Input id={"model-" + route.key} value={route.model} onChange={(event) => updateRoute(route.key, { model: event.target.value })} placeholder="e.g. deepseek-v4.1-flash" />
+                  <Select
+                    id={"model-" + route.key}
+                    value={route.model}
+                    onChange={(event) => updateRoute(route.key, { model: event.target.value })}
+                    disabled={!route.provider}
+                  >
+                    <option value="">Select model</option>
+                    {modelsFor(route.provider, route.model).map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.id}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <label htmlFor={"config-" + route.key} className="text-xs font-semibold">Config JSON</label>
@@ -206,7 +291,17 @@ function CapabilityRoutingEditor({ capability }: { capability: Capability }) {
               </div>
             </div>
           ))}
-          <Button type="button" variant="outline" onClick={() => setRoutes((current) => [...current, newRoute()])}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              setRoutes((current) => [
+                ...current,
+                newRoute(compatibleProviders[0], capability.id),
+              ])
+            }
+            disabled={compatibleProviders.length === 0}
+          >
             <Plus />
             Add route
           </Button>
