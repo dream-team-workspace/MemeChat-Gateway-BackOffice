@@ -48,20 +48,46 @@ Observed on the workstation (2026-10-22):
 
 | Item | Value |
 |---|---|
-| Cloudflare Tunnel client | `cloudflared 2026.9.1` at `~/.local/bin/cloudflared` |
+| Cloudflare Tunnel client | `cloudflared 2026.10.0` on the server |
 | Zero Trust team domain | `rough-water-d6a6.cloudflareaccess.com` |
 | Existing SSH hostname | `admin.dream-team.works` |
-| Local tunnel config | none (the tunnel is token-managed; the token file is under `~/.cloudflared`) |
-| Access JWKS cache | `~/.cloudflared/rough-water-d6a6.cloudflareaccess.com-jwks` |
-| `console.dream-team.works` DNS | **Not created yet** (checked 2026-10-22) |
-| `cloudflared` process | **Not running** on the workstation at check time |
-| Origin certificate | No `cert.pem`, so manage the token tunnel from the dashboard; `cloudflared tunnel list` cannot be used locally |
+| Server tunnels | token-managed `cloudflared.service` + named `cloudflared-freesky.service` |
+| Named tunnel credentials | `/root/.cloudflared/cert.pem` and `62299d2c-....json` are present on the server |
+| `console.dream-team.works` DNS | **Not created yet** (checked 2026-10-25) |
+| Access application | **Not created yet** (needs operator action; AUD required by the BFF) |
+| BackOffice service | `memechat-backoffice.service` on `127.0.0.1:8787` (initial deployment complete) |
+| Public hostname | **Not exposed yet**; intended `console.dream-team.works` -> `http://127.0.0.1:8787` |
 
 The existing tunnel is used for SSH. Do **not** reuse the SSH hostname for the
 web console: a tunnel public hostname maps to one service, and the SSH
 application already owns `admin.dream-team.works`.
 
 **Recommended console hostname:** `console.dream-team.works`.
+
+### 2.2 Exact remaining public steps
+
+1. In Zero Trust, create a self-hosted Access application for
+   `console.dream-team.works` with the operator policy.
+2. Copy its AUD into `/etc/memechat-backoffice.env` as `CF_ACCESS_AUD`.
+3. Add a tunnel ingress to the named tunnel and create DNS:
+
+   ```yaml
+   - hostname: console.dream-team.works
+     service: http://127.0.0.1:8787
+   ```
+
+   ```bash
+   sudo cloudflared tunnel route dns <tunnel-id> console.dream-team.works
+   sudo systemctl restart cloudflared-freesky
+   ```
+
+   Or add the hostname to the token-managed tunnel in the dashboard.
+4. Switch the BFF from its safe loopback development mode to production
+   (`NODE_ENV=production`, `APP_ENV=production`, real `CF_ACCESS_AUD`), then
+   restart `memechat-backoffice`.
+5. Verify Access login and the real Overview/Providers pages.
+
+See [deploy/README.md](../deploy/README.md) for the current deployment state.
 
 If the console must live at `admin.dream-team.works`, move SSH to another
 hostname first (for example `ssh.dream-team.works`) and re-point the SSH

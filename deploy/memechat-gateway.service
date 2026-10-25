@@ -1,0 +1,30 @@
+[Unit]
+Description=MemeChat Gateway (loopback origin for BackOffice)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=memechat
+Group=memechat
+WorkingDirectory=/opt/memechat-gateway
+EnvironmentFile=/etc/memechat-gateway.env
+ExecStart=/usr/local/bin/memechat-gateway
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
