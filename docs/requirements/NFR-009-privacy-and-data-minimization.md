@@ -21,18 +21,24 @@ shadow copy of sensitive data or leak identifiers into logs, analytics, or error
 3. UIDs are confidential: log a hash or last-4 only when necessary; never send raw UIDs to
    analytics/session replay.
 4. No ledger/usage export in v1.
-5. Browser storage: theme/sidebar only. No tokens, UIDs, ledger data, or search history.
+5. Browser storage: theme/sidebar only. No tokens, UIDs, email addresses, ledger data, or
+   search history.
 6. No third-party analytics by default. Error reporting (if added) scrubs headers, cookies, query
    strings, UIDs, and bodies.
 7. Logs retain 30 days; error reports 30 days; audit retention is gateway-owned.
 8. Screenshots/tests use fake UIDs and data.
+9. Email and subscription tier (FR-018) are admin-only PII: never logged, analytics-exported,
+   or persisted in browser storage. The gateway owns their retention.
+10. Client activity (FR-019) is metadata only (UID, capability, status, latency, time); no
+    content and no client key material.
 9. Support documentation explains what the console cannot see.
 10. Data access is limited to allowlisted operators; future RBAC can narrow it.
 
 ## Acceptance criteria
 
 - [ ] Network traces for ledger/usage contain no content fields.
-- [ ] localStorage/sessionStorage contain no tokens/UIDs/ledger rows.
+- [ ] localStorage/sessionStorage contain no tokens/UIDs/emails/ledger rows.
+- [ ] User search terms and email are absent from BFF/gateway logs and error reports.
 - [ ] Logs/error reports contain no raw UIDs or bodies (redaction tests).
 - [ ] Test fixtures use fake UIDs only.
 - [ ] No analytics SDK is loaded unless a privacy review approves it.

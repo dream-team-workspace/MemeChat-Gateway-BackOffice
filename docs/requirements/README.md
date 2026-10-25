@@ -36,6 +36,9 @@ notes pass.
 | [FR-015](FR-015-theme-and-appearance.md) | Theme and appearance | Should | 1 | FR-013 | Proposed |
 | [FR-016](FR-016-safe-mutation-protocol.md) | Safe mutation protocol | Must | 1 | FR-002 | Proposed |
 | [FR-017](FR-017-mock-and-demo-mode.md) | Mock and demo mode | Must (dev) | 1 | FR-002 | Proposed |
+| [FR-018](FR-018-user-directory-and-tier.md) | User directory, email, and tier | Must | 3 | FR-002, gateway | In progress |
+| [FR-019](FR-019-app-client-access-and-audit.md) | App client identity, access, and audit | Must | 2 | FR-002, gateway | In progress |
+| [FR-020](FR-020-provider-health-persistence.md) | Provider health persistence | Should | 3 | FR-002, gateway | Implemented |
 
 ## Non-functional requirements
 
@@ -82,6 +85,9 @@ notes pass.
 | FR-015 | /settings, shell | none | E16 |
 | FR-016 | all mutations | all mutations | E5/E7/E13 |
 | FR-017 | dev/test | mock routes | MSW/BFF tests |
+| FR-018 | /users | GET /api/admin/users | Live directory; email/tier write pending |
+| FR-019 | /app-clients/:id | SHA-1, audit, activity | Live SHA/audit; activity writer pending |
+| FR-020 | /providers | lastCheck | Live; verified across restart |
 
 ## Changing a requirement
 

@@ -150,7 +150,6 @@ BFF (runtime, secret):
 - `CF_ACCESS_AUD`
 - `VITE_DEV_AUTH_EMAIL` (development only)
 - `DEV_AUTH_BYPASS` — local only; startup rejects in production
-- `ADMIN_API_MODE` — `live|mock`; production must be `live`
 - `LOG_LEVEL`, `REQUEST_TIMEOUT_MS`, `TRUST_PROXY`
 
 Full matrix and deployment values: [10-ci-cd-and-environments.md](10-ci-cd-and-environments.md).

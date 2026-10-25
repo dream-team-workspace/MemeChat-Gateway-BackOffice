@@ -15,27 +15,33 @@ The sidebar has three groups and a footer:
 OPERATE
   Overview
   Capabilities
+  App clients
   Models
+  Providers
 
 SUPPORT
   Users
 
 SYSTEM
   Operations
-  Settings
 
 ────────────────────────────
-[STAGING] or [PRODUCTION]     ← environment badge
-[avatar] operator@email       ← user menu: theme, docs, sign out
+Settings                     ← sidebar footer; no environment panel or operator block
 ~~~
+
+The top bar carries the environment badge and theme toggle; identity and sign-out live in
+Settings.
 
 - **Overview** is the landing route.
 - **Capabilities** is the primary operational surface.
-- **Users** is support-focused; it starts with a UID search, not a directory.
+- **App clients** manages consumer-app identities, active capability grants, audit, and
+  activity.
+- **Users** is support-focused: a signed-in directory with a compact ID/Email lookup at the
+  top right.
 - **Operations** holds cache invalidation and environment/health details.
-- **Settings** holds appearance and session information only.
-- The environment badge is always visible and is read from the BFF, never from a client-only
-  build flag.
+- **Settings** holds appearance, session information, and sign-out.
+- The environment badge is always visible in the top bar and is read from the BFF, never from a
+  client-only build flag.
 - The sidebar collapses to icons at <1280px and becomes a sheet at <1024px.
 
 ## 2. App shell
@@ -66,8 +72,11 @@ Breadcrumb examples:
 | `/capabilities/:capabilityId` | Capability overview | Required | capability + providers | Save changes |
 | `/capabilities/:capabilityId/routing` | Provider routing | Required | capability providers | Replace chain |
 | `/capabilities/:capabilityId/audit` | Audit history | Required | `GET .../audit` | Inspect a change |
+| `/app-clients` | App clients | Required | `GET /app-clients` | Add/open client |
+| `/app-clients/:clientId` | Client access, audit, activity | Required | client + capabilities + providers + audit/activity | Save grants, inspect audit |
 | `/models` | Model catalog | Required | `GET /models` | Add/edit model |
-| `/users` | User lookup | Required | none | Look up UID |
+| `/providers` | Provider connections | Required | provider status + capabilities | Check health |
+| `/users` | User directory + lookup | Required | users directory | Find by ID/email |
 | `/users/:uid` | Redirect to ledger | Required | — | — |
 | `/users/:uid/ledger` | User ledger | Required | ledger | Inspect state |
 | `/users/:uid/usage` | User usage | Required | usage | Inspect metadata |
@@ -112,13 +121,14 @@ Layout:
 
 1. Page header: "Overview", environment badge, last refreshed.
 2. Status row: Gateway health (liveness/readiness), Admin API reachability, Console version.
-3. Count cards: capabilities (total / enabled / disabled), models (total / enabled).
-4. Quick actions: Open capabilities, Look up user, Invalidate cache.
+3. Count cards: capabilities (total / enabled / disabled), models (total / enabled), integrated
+   clients (total / enabled), environment.
+4. No quick-actions card; navigation lives in the sidebar.
 5. "Needs attention" panel: disabled capabilities, stale registry note, failed health probe.
    Only real data; no invented charts.
 
-Data: capabilities query, models query, `/api/health`. Counts are derived client-side from
-the full lists (the admin API returns all capabilities/models).
+Data: capabilities, models, app-client, and `/api/health` queries. Counts are derived
+client-side from the full lists (the admin API returns all capabilities/models/clients).
 
 States: loading skeletons per card; partial failure keeps other cards; gateway down shows a
 degraded banner and still allows reading cached data; no fake zeros.
@@ -259,19 +269,24 @@ upsert. No delete; disable instead. ID cannot be changed after creation (API pat
 Rules: warn on duplicate sort order; show which capability it points to; if the capability is
 disabled, show a warning but still allow saving.
 
-### 4.9 User lookup — `/users`
+### 4.9 Users — `/users`
 
-**Purpose:** start a support investigation without a user directory.
+**Purpose:** start a support investigation from the signed-in user directory, or jump straight
+to a UID.
 
-Layout: centered search panel: "Find a user by Firebase UID"; input; "Look up" button; help
-text with where to find a UID. Recent UIDs are **not** persisted by default.
+Layout: page header with a compact search panel at the top right: ID/Email mode toggle, input,
+Find. The directory table below lists email (or “Email not captured”), tier, UID, last seen,
+joined, and a link to the ledger.
 
-Behavior: trim, validate against `[A-Za-z0-9_-]{1,128}`, navigate to
-`/users/:uid/ledger`. Invalid input is inline, not a toast. No fuzzy match; no email search
-(API gap). The bare `/users/:uid` redirects to the ledger tab.
+Behavior: ID mode trims, validates `[A-Za-z0-9_-]{1,128}`, and navigates to
+`/users/:uid/ledger`. Email mode validates the address and filters the directory through
+`GET /api/admin/users?query=`. Invalid input is inline, not a toast. Recent searches/emails are
+**not** persisted. The bare `/users/:uid` redirects to the ledger tab.
 
-States: default, invalid, loading (during navigation), error if the user has no ledger
-(empty state with usage link).
+States: default/loading; ID lookup works independently; an older gateway without the directory
+shows a neutral pending state; empty email filter result; error with retry. Rows with no stored
+email/tier show “Email not captured” / “Unknown” and a note that the gateway records them on
+sign-in. See [FR-018](requirements/FR-018-user-directory-and-tier.md).
 
 ### 4.10 User detail — `/users/:uid/ledger` and `/users/:uid/usage`
 
@@ -464,6 +479,5 @@ work at 360px, even if the tables scroll horizontally.
 - Drag-and-drop table columns.
 - Real-time collaborative editing.
 - Global audit/activity feed.
-- User directory browsing.
 - Job triggers.
 - File export.

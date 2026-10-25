@@ -4,12 +4,21 @@
 
 - **Phase 1 implementation.** The Vite/React operator console, Cloudflare Access login, shared
   admin contract, and Hono BFF are implemented on `feature/implementation`.
-- The BFF defaults to a deterministic **mock** admin store. The gateway admin API is still
-  contract-planned; `ADMIN_API_MODE=live` is a proxy skeleton, not a verified integration.
+- The BFF is **live-only** and always uses the gateway's Postgres-backed
+  `/internal/admin/*` API. There is no mock admin store or fixture fallback in the runtime;
+  readiness, capabilities, routing, kill switch, audit, models, ledger, usage, cache, grants,
+  and RevenueCat status were exercised against the gateway.
 - Capabilities, models, users, operations, and settings are wired through TanStack Query and
   the BFF. The old dummy pages and `features/dashboard` are removed.
-- There is no production deployment yet. The CI deploy job is gated by
-  `DEPLOY_ENABLED` and still contains a placeholder.
+- The gateway shipped the five BackOffice additions: users directory read endpoint, app-client
+  SHA-1 identity, client admin audit, per-client activity read endpoint, and persisted provider
+  health. Two data-source gaps remain: the gateway does not yet store verified email/RevenueCat
+  tier, and it has no usage-event writer to attach `app_client_id`. See the status block in
+  [docs/15-gateway-requests.md](docs/15-gateway-requests.md); the console shows honest empty or
+  unknown values for those two gaps.
+- The first BackOffice release is deployed on the server loopback with systemd; public
+  `console.dream-team.works` exposure is pending Cloudflare Access/tunnel configuration.
+  CI deploys `master` to `/opt/memechat-backoffice`; see [deploy/README.md](deploy/README.md).
 
 ## Sources of truth
 
@@ -20,6 +29,7 @@
 5. `docs/02-backend-contract-analysis.md` — real gateway status and gaps.
 6. `docs/10-ci-cd-and-environments.md` — branch/CI/deploy policy.
 7. `docs/14-cloudflare-access.md` — Access/Tunnel setup.
+8. `docs/15-gateway-requests.md` — gateway contract status, remaining write paths, and SQL.
 
 Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals,
 `docs/03-architecture.md` for structure. Fix docs in the same change.
@@ -27,7 +37,9 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
 ## Commands
 
 - `npm install` — install from the lockfile.
-- `npm run dev` — Vite (5173) + BFF (8787); mock store by default.
+- `npm run dev` — Vite (5173) + BFF (8787); requires the gateway admin API.
+- Live start: `ADMIN_API_BASE_URL=http://127.0.0.1:8080 ADMIN_API_SECRET=... npm run dev`.
+- `npm test` — live BFF adapter contract tests with a fake upstream gateway; no runtime mock data.
 - `npm run dev:web` / `npm run dev:api` — run one side.
 - `npm run lint` — ESLint; CI PR gate.
 - `npm run test` — Vitest BFF contract tests.
@@ -43,7 +55,12 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
 - `src/platform` holds auth, the typed API client, and the Query client.
 - `shared/admin-api` is the runtime-agnostic Zod contract; both browser and server import it.
 - `server` is the only admin-secret holder and the only component allowed to call
-  `/internal/admin/*`.
+  `/internal/admin/*`. The gateway wraps that subtree in `AdminAuth` and requires
+  `X-Admin-Actor` on mutating requests.
+- Provider catalogs are authoritative: routing and model forms must use provider-published
+  models and their single capability mapping; do not hardcode or allow free-text model ids.
+- App clients always carry the full capability matrix. Enabled rows must bind a capability to
+  a model routed for that capability; disabled rows remain present and are not grants.
 - Browser data goes through the typed client and Query hooks; no `fetch` in components/pages.
 - Forms use RHF + Zod; mutations are pessimistic for registry and money paths.
 - Use semantic design tokens only; no raw colors in domain code.
@@ -53,10 +70,14 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
 
 - Cloudflare Access is the edge identity. Production requests carry
   `Cf-Access-Jwt-Assertion`; the BFF verifies issuer/audience/JWKS and derives the actor email.
-- Local dev uses `VITE_DEV_AUTH_EMAIL` and the BFF `DEV_ACTOR_EMAIL` fallback. Production
-  startup rejects mock admin mode or missing Access/admin secrets.
+- Local dev uses `VITE_DEV_AUTH_EMAIL` and the BFF `DEV_ACTOR_EMAIL` fallback. The BFF
+  requires `ADMIN_API_SECRET` at startup (all environments); production also requires
+  `CF_ACCESS_AUD`.
 - Never put `ADMIN_API_SECRET`, `CF_ACCESS_AUD` validation secrets, session tokens, or raw
   UIDs in the browser, logs, fixtures, or commits.
+- App-client keys are returned exactly once by create/rotate. The app sends
+  `X-App-Client-Key`; only its SHA-1 digest is stored. Never log or display the plaintext key
+  after the one-time reveal; rotating invalidates the previous key.
 
 ## Branch and change policy
 

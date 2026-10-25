@@ -23,8 +23,8 @@
 | R11 | Radius/typography deviation from theme rejected | Low | Visual rework | Keep color authoritative; make geometry a documented decision | Design review |
 | R12 | TypeScript 7 / ESLint 10 ecosystem incompatibility | Medium | Tooling churn | Pin current stable; fallback TS 6/ESLint 9; ADR if changed | Scaffold |
 | R13 | No staging gateway or test data | Medium | Can't validate integration | Provision staging; use test UID/capability; never prod mutations | Phase 4 |
-| R14 | Scope creep (global audit, jobs, charts, user search) | High | Delay v1 | Explicit non-goals; defer table; requirement gate | Sprint planning |
-| R15 | No user directory / summary | High (product) | Support friction | Exact UID lookup + latest ledger balance; backend ask | Phase 3 |
+| R14 | Scope creep (global audit, jobs, charts) | High | Delay v1 | Explicit non-goals; defer table; requirement gate | Sprint planning |
+| R15 | User email/tier are not populated yet | Medium (product) | Directory rows show email null / tier unknown | Gateway read endpoint live; decide email privacy + RC mapping, then implement write path. See [15-gateway-requests](15-gateway-requests.md) | Phase 3 |
 | R16 | No global audit feed | Medium | Harder investigation | Per-capability audit; document limitation | Phase 3 |
 | R17 | Dashboard pressure to invent metrics | Medium | Misleading ops | No charts without API; explicit "not available" | Phase 3 |
 | R18 | Single-server deployment outage | Medium | Console down | Health checks, rollback, runbook; acceptable v1 | Phase 5 |

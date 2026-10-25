@@ -26,7 +26,8 @@ In scope:
 
 Out of scope:
 
-- User directory/search (IA §4.9; no user-search endpoint).
+- The user directory and email search: see [FR-018](FR-018-user-directory-and-tier.md). This
+  requirement remains the exact-UID ledger detail view.
 - Editing ledger rows or issuing refunds.
 - RevenueCat transaction lookup outside the ledger fields.
 - Content/prompt inspection (none exists).

@@ -43,6 +43,7 @@ and has a named operator job. "It would be nice to see" is not a scope argument.
 | Routing | Ordered provider chain add/edit/remove/reorder | FR-006 |
 | Audit | Per-capability audit history and before/after diff | FR-007 |
 | Catalog | Model list and upsert | FR-008 |
+| Users | Signed-in directory with email and Pro/Ultra tier (directory live; email/tier write path pending) | FR-018 |
 | Users | Ledger inspection by exact UID | FR-009 |
 | Users | Usage inspection by exact UID | FR-010 |
 | Users | Positive credit grant with idempotency | FR-011 |
@@ -59,7 +60,7 @@ and has a named operator job. "It would be nice to see" is not a scope argument.
 - Creating or deleting users.
 - Viewing or editing message content, images, audio, or prompts.
 - Refunds, negative adjustments, plan changes, or RevenueCat subscription management.
-- Global user search or a user directory (no API).
+- Editing users or tiers, and exporting the user directory.
 - Global audit stream (only per-capability audit exists).
 - Triggering `/internal/jobs/*` (different secret, separate ops surface; deferred).
 - Bulk operations across capabilities/models.
@@ -80,7 +81,7 @@ and has a named operator job. "It would be nice to see" is not a scope argument.
    never truncated without a way to see the full value.
 6. **No invented data.** If the backend does not expose a metric, the UI does not fake it.
 7. **Least privilege.** The BFF exposes only the routes the UI needs; no generic proxy.
-8. **Fast under pressure.** Kill switch and user lookup are reachable in one click from the
+8. **Fast under pressure.** Kill switch and user search are reachable in one click from the
    shell.
 
 ## Data available to the UI
@@ -90,6 +91,7 @@ and has a named operator job. "It would be nice to see" is not a scope argument.
 | Capabilities + provider chains + revision | Admin API | Full list, including disabled |
 | Capability audit | Admin API | Per capability, newest first |
 | Models | Admin API | App catalog rows |
+| User directory | Admin API | Signed-in accounts, keyset paginated; email/tier fields await the gateway write path |
 | Ledger | Admin API | By exact UID, keyset paginated |
 | Usage | Admin API | By exact UID, metadata only, keyset paginated |
 | Credit grant | Admin API | Positive CRD deposit via RevenueCat |
