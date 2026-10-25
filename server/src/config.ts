@@ -3,9 +3,9 @@ import { z } from "zod";
 const rawSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ENV: z.enum(["development", "staging", "production"]).optional(),
+  HOST: z.string().default("127.0.0.1"),
   PORT: z.coerce.number().int().positive().default(8787),
   APP_ORIGIN: z.string().default("http://127.0.0.1:5173"),
-  ADMIN_API_MODE: z.enum(["mock", "live"]).optional(),
   ADMIN_API_BASE_URL: z.string().default("http://127.0.0.1:8080"),
   ADMIN_API_SECRET: z.string().optional(),
   CF_ACCESS_TEAM_DOMAIN: z.string().default("rough-water-d6a6.cloudflareaccess.com"),
@@ -21,13 +21,14 @@ const raw = rawSchema.parse(process.env);
 const nodeEnv = raw.NODE_ENV;
 const environment: "development" | "staging" | "production" =
   raw.APP_ENV ?? (nodeEnv === "production" ? "production" : "development");
-const adminApiMode = raw.ADMIN_API_MODE ?? (nodeEnv === "production" ? "live" : "mock");
+// The console is live-only. There is no in-memory admin store: every read
+// and mutation goes to the gateway's /internal/admin API.
+const adminApiMode = "live" as const;
 
-if (nodeEnv === "production" && adminApiMode !== "live") {
-  throw new Error("ADMIN_API_MODE must be live in production");
-}
-if (nodeEnv === "production" && !raw.ADMIN_API_SECRET) {
-  throw new Error("ADMIN_API_SECRET is required in production");
+if (!raw.ADMIN_API_SECRET) {
+  throw new Error(
+    "ADMIN_API_SECRET is required; the backoffice is live-only (no mock store)",
+  );
 }
 if (nodeEnv === "production" && !raw.CF_ACCESS_AUD) {
   throw new Error("CF_ACCESS_AUD is required in production");
@@ -37,6 +38,7 @@ export const config = {
   nodeEnv,
   environment,
   isProduction: nodeEnv === "production",
+  host: raw.HOST,
   port: raw.PORT,
   appOrigin: raw.APP_ORIGIN.replace(/\/$/, ""),
   adminApiMode,

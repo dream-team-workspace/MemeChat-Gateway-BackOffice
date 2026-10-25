@@ -8,6 +8,7 @@ import { config } from "./config.js";
 const server = serve(
   {
     fetch: app.fetch,
+    hostname: config.host,
     port: config.port,
   },
   (info) => {
@@ -15,6 +16,7 @@ const server = serve(
       JSON.stringify({
         level: "info",
         message: "backoffice bff listening",
+        host: config.host,
         port: info.port,
         environment: config.environment,
         adminApiMode: config.adminApiMode,

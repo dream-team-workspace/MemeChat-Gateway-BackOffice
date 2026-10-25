@@ -14,6 +14,30 @@ export const ledgerStateSchema = z.enum([
 
 export type LedgerState = z.infer<typeof ledgerStateSchema>;
 
+/**
+ * Subscription tier resolved by the gateway from RevenueCat entitlements.
+ * `unknown` means the gateway has not resolved a tier yet; the console must not
+ * guess one from credit balance or usage.
+ */
+export const userTierSchema = z.enum(["free", "pro", "ultra", "unknown"]);
+
+export type UserTier = z.infer<typeof userTierSchema>;
+
+/** One MemeChat account that has signed in at least once. */
+export const userSummarySchema = z.object({
+  uid: z.string(),
+  email: z.string().nullable(),
+  tier: userTierSchema,
+  lastSeenAt: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+});
+
+export type UserSummary = z.infer<typeof userSummarySchema>;
+
+export const userListSchema = paginatedSchema(userSummarySchema);
+
+export type UserList = z.infer<typeof userListSchema>;
+
 export const ledgerEntrySchema = z.object({
   id: z.union([z.number(), z.string()]),
   uid: z.string(),
@@ -78,6 +102,14 @@ export const creditGrantResultSchema = z.object({
 });
 
 export type CreditGrantResult = z.infer<typeof creditGrantResultSchema>;
+
+export const revenueCatStatusSchema = z.object({
+  configured: z.boolean(),
+  projectId: z.string().nullable(),
+  baseUrl: z.string().nullable(),
+});
+
+export type RevenueCatStatus = z.infer<typeof revenueCatStatusSchema>;
 
 export type LedgerPage = z.infer<typeof ledgerPageSchema>;
 export type UsagePage = z.infer<typeof usagePageSchema>;

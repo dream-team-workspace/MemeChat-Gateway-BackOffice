@@ -24,6 +24,18 @@ export function readPageQuery(c: Context) {
   });
 }
 
+export const userSearchQuerySchema = z.object({
+  query: z.string().trim().min(1).max(254).optional(),
+});
+
+/** Optional free-text search used by the users directory (UID or email). */
+export function readUserQuery(c: Context) {
+  const raw = c.req.query("query")?.trim();
+  return userSearchQuerySchema.parse({
+    query: raw ? raw : undefined,
+  }).query;
+}
+
 export function readUid(c: Context) {
   const uid = c.req.param("uid") ?? "";
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) {

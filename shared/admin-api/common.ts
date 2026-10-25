@@ -52,10 +52,72 @@ export const cacheInvalidationSchema = z.object({
 
 export type CacheInvalidation = z.infer<typeof cacheInvalidationSchema>;
 
+export const providerModelSchema = z.object({
+  id: z.string(),
+  displayName: z.string().optional(),
+  capability: z.string(),
+  default: z.boolean().optional(),
+});
+
+export type ProviderModel = z.infer<typeof providerModelSchema>;
+
+export const providerStateSchema = z.enum([
+  "configured",
+  "unconfigured",
+  "misconfigured",
+  "healthy",
+  "reachable",
+  "degraded",
+  "unreachable",
+]);
+
+export type ProviderState = z.infer<typeof providerStateSchema>;
+
+/**
+ * The gateway's persisted probe result. `provider.status` describes current
+ * configuration; this object is the last health check written to the database.
+ */
+export const providerHealthSchema = z.object({
+  status: providerStateSchema,
+  checkedAt: isoDateTimeSchema,
+  latencyMs: z.number().int().nullable(),
+  detail: z.string(),
+  checkedBy: z.string().nullable(),
+});
+
+export type ProviderHealth = z.infer<typeof providerHealthSchema>;
+
+export const providerStatusSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  role: z.string(),
+  capabilities: z.array(z.string()).optional(),
+  models: z.array(providerModelSchema).optional(),
+  endpoint: z.string(),
+  model: z.string(),
+  modelValid: z.boolean(),
+  apiVersion: z.string().optional(),
+  limits: z.record(z.string(), z.unknown()).optional(),
+  credential: z.string(),
+  configured: z.boolean(),
+  status: providerStateSchema,
+  detail: z.string(),
+  latencyMs: z.number().int().nullable(),
+  checkedAt: isoDateTimeSchema.nullable(),
+  /** Present once the gateway persists probe results. */
+  lastCheck: providerHealthSchema.nullable().optional(),
+});
+
+export type ProviderStatus = z.infer<typeof providerStatusSchema>;
+
+export const providerListSchema = z.object({
+  items: z.array(providerStatusSchema),
+});
+
 export const metaSchema = z.object({
   environment: z.enum(["development", "staging", "production"]),
   authMode: z.enum(["cloudflare-access", "development"]),
-  adminApiMode: z.enum(["mock", "live"]),
+  adminApiMode: z.literal("live"),
   version: z.string(),
   commit: z.string().optional(),
 });

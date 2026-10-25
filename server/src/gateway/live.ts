@@ -55,7 +55,15 @@ export async function adminFetch(
     try {
       body = JSON.parse(text) as unknown;
     } catch {
-      throw new HttpError(502, "CONTRACT_MISMATCH", "The gateway returned a non-JSON response.");
+      // A successful response must be JSON. An error from an unknown route may
+      // be plain text, so preserve its status for the browser to interpret.
+      if (response.ok) {
+        throw new HttpError(
+          502,
+          "CONTRACT_MISMATCH",
+          "The gateway returned a non-JSON response.",
+        );
+      }
     }
   }
 
@@ -63,10 +71,11 @@ export async function adminFetch(
     const record =
       body && typeof body === "object" ? (body as Record<string, unknown>) : {};
     const code = typeof record.code === "string" ? record.code : "UPSTREAM_ERROR";
+    const fallbackMessage = text.trim().slice(0, 200);
     const message =
       typeof record.message === "string"
         ? record.message
-        : "The gateway admin API returned an error.";
+        : fallbackMessage || "The gateway admin API returned an error.";
     throw new HttpError(response.status, code, message);
   }
 
