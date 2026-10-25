@@ -6,6 +6,7 @@ import { ArrowLeft, Copy, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GrantCreditsDialog } from "@/features/users/components/grant-credits-dialog";
+import { revenueCatStatusQueryOptions } from "@/features/users/queries/revenuecat.queries";
 import { userLedgerQueryOptions } from "@/features/users/queries/users.queries";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -19,8 +20,12 @@ export function UserDetailLayout() {
   const { uid } = useParams({ from: "/app/users/$uid" });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const ledger = useQuery(userLedgerQueryOptions(uid));
+  const revenuecat = useQuery(revenueCatStatusQueryOptions);
   const [grantOpen, setGrantOpen] = useState(false);
+  const [grantedBalance, setGrantedBalance] = useState<number | undefined>();
   const balance = ledger.data?.items[0]?.balanceAfter;
+  const displayedBalance = grantedBalance ?? balance;
+  const revenuecatReady = revenuecat.data?.configured === true;
 
   return (
     <div className="animate-in">
@@ -39,14 +44,36 @@ export function UserDetailLayout() {
             </Button>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Latest known balance: <span className="font-medium text-foreground">{typeof balance === "number" ? formatNumber(balance) + " CRD" : "—"}</span>{" "}
-            · from the newest ledger row, not a live RevenueCat read
+            Latest known balance: <span className="font-medium text-foreground">{typeof displayedBalance === "number" ? formatNumber(displayedBalance) + " CRD" : "—"}</span>{" "}
+            {typeof grantedBalance === "number"
+              ? "· returned by the most recent RevenueCat grant"
+              : "· from the newest ledger row, not a live RevenueCat read"}
           </p>
         </div>
-        <Button type="button" onClick={() => setGrantOpen(true)}>
-          <CreditCard />
-          Grant credits
-        </Button>
+        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+          <Button
+            type="button"
+            onClick={() => setGrantOpen(true)}
+            disabled={!revenuecatReady}
+            title={
+              revenuecat.isLoading
+                ? "Checking RevenueCat configuration"
+                : revenuecatReady
+                  ? "Grant credits through RevenueCat"
+                  : "RevenueCat is not configured on the gateway"
+            }
+          >
+            <CreditCard />
+            Grant credits
+          </Button>
+          <Badge variant={revenuecatReady ? "success" : "warning"}>
+            {revenuecat.isLoading
+              ? "Checking RevenueCat"
+              : revenuecatReady
+                ? "RevenueCat" + (revenuecat.data?.projectId ? " · " + revenuecat.data.projectId : "")
+                : "RevenueCat not configured"}
+          </Badge>
+        </div>
       </div>
 
       <nav aria-label="User sections" className="mt-6 flex gap-1 border-b border-border">
@@ -73,8 +100,15 @@ export function UserDetailLayout() {
 
       <div className="mt-6"><Outlet /></div>
 
-      {grantOpen ? (
-        <GrantCreditsDialog uid={uid} open onOpenChange={setGrantOpen} />
+      {grantOpen && revenuecatReady ? (
+        <GrantCreditsDialog
+          uid={uid}
+          open
+          onOpenChange={setGrantOpen}
+          onGranted={(result) => {
+            if (result.balanceAfter !== undefined) setGrantedBalance(result.balanceAfter);
+          }}
+        />
       ) : null}
     </div>
   );

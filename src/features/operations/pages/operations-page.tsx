@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, CheckCircle2, Database, RefreshCw, Server, ShieldCheck } from "lucide-react";
+import { Activity, CheckCircle2, CreditCard, Database, RefreshCw, Server, ShieldCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { capabilityKeys } from "@/features/capabilities/api/capabilities.api";
 import { modelKeys } from "@/features/models/api/models.api";
+import { revenueCatStatusQueryOptions } from "@/features/users/queries/revenuecat.queries";
 import { getErrorMessage } from "@/platform/api";
 import { systemApi, systemKeys } from "@/platform/api/system";
 import { formatDateTime } from "@/lib/format";
@@ -17,6 +18,7 @@ export function OperationsPage() {
   const queryClient = useQueryClient();
   const health = useQuery({ queryKey: systemKeys.health, queryFn: systemApi.health });
   const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
+  const revenuecat = useQuery(revenueCatStatusQueryOptions);
   const invalidate = useMutation({
     mutationFn: systemApi.invalidateCache,
     onSuccess: () => {
@@ -28,6 +30,7 @@ export function OperationsPage() {
   const gatewayOk = health.data?.status === "ok";
   const liveness = health.data?.gateway?.liveness ?? "—";
   const readiness = health.data?.gateway?.readiness ?? "—";
+  const revenuecatReady = revenuecat.data?.configured === true;
 
   return (
     <div className="animate-in">
@@ -58,15 +61,21 @@ export function OperationsPage() {
             <Badge variant={readiness === "ok" ? "success" : "warning"}>{readiness}</Badge>
           </div>
           <h2 className="mt-4 text-sm font-semibold">Gateway readiness</h2>
-          <p className="mt-1 text-xs text-muted-foreground">{health.data?.gateway ? "Probed from the BFF" : "No probe data"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {readiness === "not_configured"
+              ? "Backend has no /readyz endpoint yet"
+              : health.data?.gateway
+                ? "Probed from the BFF"
+                : "No probe data"}
+          </p>
         </Card>
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <span className="grid size-9 place-items-center rounded-lg bg-warning/10 text-warning-foreground"><Activity className="size-4" /></span>
-            <Badge variant="outline">{meta.data?.adminApiMode ?? "—"}</Badge>
+            <Badge variant="outline">live</Badge>
           </div>
           <h2 className="mt-4 text-sm font-semibold">Admin API mode</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Mock store or live gateway proxy</p>
+          <p className="mt-1 text-xs text-muted-foreground">Gateway admin API</p>
         </Card>
       </div>
 
@@ -129,7 +138,7 @@ export function OperationsPage() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">Admin API</span>
-              <span className="font-medium">{meta.data?.adminApiMode ?? "—"}</span>
+              <span className="font-medium">live</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">Console</span>
@@ -142,6 +151,45 @@ export function OperationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6">
+        <CardHeader className="flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle>RevenueCat grants</CardTitle>
+            <CardDescription>Positive CRD adjustments; status reflects gateway credentials, not live RC reachability.</CardDescription>
+          </div>
+          <Badge variant={revenuecat.isLoading ? "outline" : revenuecatReady ? "success" : "warning"}>
+            {revenuecat.isLoading ? "Checking" : revenuecatReady ? "Configured" : "Not configured"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="grid gap-4 text-xs sm:grid-cols-3">
+          <div>
+            <p className="text-muted-foreground">Status</p>
+            <p className="mt-1 font-medium">{revenuecatReady ? "Credentials present" : "Not configured"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Project</p>
+            <p className="mt-1 break-all font-mono text-[11px]">{revenuecat.data?.projectId ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">API base</p>
+            <p className="mt-1 break-all font-mono text-[11px]">{revenuecat.data?.baseUrl ?? "—"}</p>
+          </div>
+          <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground sm:col-span-3">
+            <CreditCard className="mt-0.5 size-3.5 shrink-0" />
+            <p>
+              {revenuecatReady
+                ? "Grants are routed by the gateway to RevenueCat with an idempotent request ID. A successful grant is the reachability check. Open a user to grant credits."
+                : "Set REVENUECAT_SECRET_KEY and REVENUECAT_PROJECT_ID on the gateway to enable grants. The rest of the console stays usable."}
+            </p>
+          </div>
+          {revenuecat.isError ? (
+            <p role="alert" className="text-[11px] text-destructive sm:col-span-3">
+              {getErrorMessage(revenuecat.error)}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card className="mt-6">
         <CardHeader>

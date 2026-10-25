@@ -15,10 +15,12 @@ export function GrantCreditsDialog({
   uid,
   open,
   onOpenChange,
+  onGranted,
 }: {
   uid: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onGranted?: (result: CreditGrantResult) => void;
 }) {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
@@ -39,7 +41,10 @@ export function GrantCreditsDialog({
     }
     setError(null);
     mutation.mutate(parsed.data, {
-      onSuccess: (value) => setResult(value),
+      onSuccess: (value) => {
+        setResult(value);
+        onGranted?.(value);
+      },
       onError: (mutationError) => setError(getErrorMessage(mutationError)),
     });
   }

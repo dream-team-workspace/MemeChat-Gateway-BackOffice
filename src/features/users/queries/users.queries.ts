@@ -15,3 +15,15 @@ export function userUsageQueryOptions(uid: string, cursor?: string) {
     queryFn: () => usersApi.usage(uid, cursor),
   });
 }
+
+export function userDirectoryQueryOptions(
+  query: string,
+  cursor?: string,
+  enabled = true,
+) {
+  return queryOptions({
+    queryKey: userKeys.directory(query, cursor),
+    queryFn: () => usersApi.list({ query: query || undefined, cursor }),
+    enabled,
+  });
+}
