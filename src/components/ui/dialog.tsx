@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -25,6 +26,11 @@ export function Dialog({
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,11 +45,15 @@ export function Dialog({
           ).filter((element) => element.offsetParent !== null)
         : [];
 
-    focusable()[0]?.focus();
+    // Prefer the first actual form control over the header close button.
+    const firstField = panel?.querySelector<HTMLElement>(
+      'textarea, input:not([type="hidden"]), select, [data-autofocus]',
+    );
+    (firstField ?? focusable()[0])?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onOpenChange(false);
+        onOpenChangeRef.current(false);
         return;
       }
       if (event.key !== "Tab") return;
@@ -65,11 +75,13 @@ export function Dialog({
       document.removeEventListener("keydown", onKeyDown);
       previous?.focus();
     };
-  }, [open, onOpenChange]);
+  }, [open]);
 
   if (!open) return null;
 
-  return (
+  // Portal to the body: page roots animate with a transform, which would turn
+  // `position: fixed` into a containing block and clip the dialog on scroll.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <button
         type="button"
@@ -113,6 +125,7 @@ export function Dialog({
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

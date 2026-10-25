@@ -167,7 +167,7 @@ export function SettingsPage() {
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Gateway</span>
-                <span className="truncate font-mono text-[11px]">{meta.data?.adminApiMode === "mock" ? "BFF mock store" : "api.dev.memechat.app"}</span>
+                <span className="truncate font-mono text-[11px]">Live gateway admin</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Console</span>
@@ -185,17 +185,19 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>About this template</CardTitle>
-              <CardDescription>Layout preview, not production wiring</CardDescription>
+              <CardTitle>About this console</CardTitle>
+              <CardDescription>Live gateway integration</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-[11px] leading-5 text-muted-foreground">
               <p>
-                Cloudflare Access authenticates operators before the console
-                loads. Page data is still dummy and no gateway request is made.
+                Every registry, client, provider, and user view is loaded from the
+                gateway&apos;s <span className="font-mono">/internal/admin</span> API
+                through the BFF. There is no mock data path.
               </p>
               <p>
-                In production, the BFF owns the admin secret and the actor
-                header. The browser never calls the gateway directly.
+                Cloudflare Access authenticates operators before the console loads. In
+                production, the BFF owns the admin secret and the actor header; the browser
+                never calls the gateway directly.
               </p>
               <div className="flex items-center gap-2 text-foreground">
                 <Building2 className="size-3.5" />
