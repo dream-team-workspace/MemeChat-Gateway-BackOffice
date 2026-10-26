@@ -27,14 +27,15 @@
 | **Keyset pagination** | Cursor pagination based on an indexed ordering (e.g. `(uid, created_at DESC)`), not OFFSET |
 | **Cursor** | Opaque string identifying the next page; the client never constructs it |
 | **Cache invalidation** | Forcing the gateway's in-memory capability registry snapshot to reload |
-| **OIDC** | OpenID Connect; the operator login protocol |
+| **Cloudflare Access** | Zero Trust login/policy layer used for operators (ADR-0008) |
+| **OIDC** | Historical: the previously planned operator login protocol; superseded by Access |
 | **PKCE** | Proof Key for Code Exchange; protects the OAuth code flow |
 | **Session** | Signed HttpOnly cookie representing an authenticated operator |
 | **CSRF** | Cross-Site Request Forgery; mitigated by Origin + double-submit token |
 | **CSP** | Content Security Policy; restricts scripts/styles/connections |
 | **Allowlist** | Explicitly permitted operators (email/domain/org) or BFF routes |
-| **MSW** | Mock Service Worker; HTTP mocking for tests and local dev |
-| **Mock mode** | Deterministic in-memory admin API used before the gateway routes exist |
+| **Test double** | Fetch-level fake gateway used only by contract tests; never used by runtime |
+| **Mock mode** | Historical: removed 2026-10-24; the console is live-only |
 | **Contract** | The canonical camelCase payloads, errors, and pagination the BFF exposes |
 | **ADR** | Architecture Decision Record |
 | **FR / NFR** | Functional / non-functional requirement |

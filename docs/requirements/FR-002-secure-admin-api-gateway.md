@@ -7,6 +7,11 @@
 | Phase | 1 |
 | Owner | BFF |
 | Depends on | FR-001 |
+
+> **Update 2026-10-22:** Operator authentication is Cloudflare Access (ADR-0008). The BFF
+> validates `Cf-Access-Jwt-Assertion` (issuer/audience/JWKS) and uses its verified `email` for
+> `X-Admin-Actor`; it does not implement an OIDC login or an app-owned session cookie. CSRF,
+> the route allowlist, secret isolation, and upstream normalization remain unchanged.
 | Source | [API integration](../06-api-integration.md), [Security](../07-security-model.md) |
 
 ## Intent

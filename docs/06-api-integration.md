@@ -16,7 +16,7 @@
    failure is a contract bug, not a silent coercion.
 4. **No optimistic money.** Grants and registry changes wait for the server.
 5. **No generic proxy.** Explicit routes, methods, params, and Zod schemas.
-6. **No invented endpoints.** Missing backend routes stay mock-only and blocked.
+6. **No invented endpoints.** Missing backend routes are blocked; no runtime mock fallback exists.
 7. **Every request has an ID.** `X-Request-Id` is generated or propagated and shown on errors.
 
 ## 2. BFF endpoint catalog
@@ -26,11 +26,17 @@
 | Method | BFF path | Upstream | Auth | Notes |
 |---|---|---|---|---|
 | GET | `/api/health` | `GET /healthz`, `GET /readyz` | public | Liveness/readiness + console version; no secrets |
-| GET | `/api/auth/login` | IdP | public | Sets state/nonce cookies, redirects |
-| GET | `/api/auth/callback` | IdP | public | Verifies state, allowlist, mints session |
-| POST | `/api/auth/logout` | IdP (optional) | session | Clears cookie, CSRF required |
-| GET | `/api/auth/me` | none | session | Returns operator + environment |
-| GET | `/api/meta` | none | public | App version, commit, environment |
+| GET | `/api/meta` | none | public | App version, commit, environment. No identity. |
+
+Cloudflare Access handles login/logout at the edge; these are **not** BFF routes:
+
+| Method | Edge path | Auth | Notes |
+|---|---|---|---|
+| GET | `/cdn-cgi/access/get-identity` | Access cookie | Verified email/name/idp/iat; 401/opaque redirect means unauthenticated |
+| GET | `/cdn-cgi/access/logout` | Access cookie | Clears the Access session |
+
+The BFF validates `Cf-Access-Jwt-Assertion` on every `/api/admin/*` request; it does not mint
+an app-owned login session.
 
 ### 2.2 Admin resources
 
@@ -41,21 +47,55 @@
 | PUT | `/api/admin/capabilities/:id` | `PUT /internal/admin/capabilities/{id}` | `Capability` |
 | POST | `/api/admin/capabilities/:id/toggle` | `POST .../toggle` | `Capability` |
 | PUT | `/api/admin/capabilities/:id/providers` | `PUT .../providers` | `ProviderRoute[]` or `Capability` |
-| GET | `/api/admin/capabilities/:id/audit` | `GET .../audit?limit=` | `{items,nextCursor}` |
+| GET | `/api/admin/capabilities/:id/audit` | `GET .../audit?limit=&cursor=` | `{items,nextCursor}` |
+| GET | `/api/admin/app-clients` | `GET /internal/admin/app-clients` | `{items: AppClient[]}` |
+| POST | `/api/admin/app-clients` | `POST /internal/admin/app-clients` | `AppClient` |
+| GET | `/api/admin/app-clients/:id` | `GET .../app-clients/{id}` | `AppClient` |
+| PUT | `/api/admin/app-clients/:id` | `PUT .../app-clients/{id}` | `AppClient` |
+| DELETE | `/api/admin/app-clients/:id` | `DELETE .../app-clients/{id}` | `{deleted}` |
+| POST | `/api/admin/app-clients/:id/key/rotate` | `POST .../app-clients/{id}/key/rotate` | `AppClient` with one-time `clientKey` |
+| GET | `/api/admin/app-clients/:id/audit` | `GET .../app-clients/{id}/audit?limit=&cursor=` | `{items,nextCursor}` |
+| GET | `/api/admin/app-clients/:id/activity` | `GET .../app-clients/{id}/activity?limit=&cursor=` | `{items,nextCursor}` |
 | GET | `/api/admin/models` | `GET /internal/admin/models` | `Model[]` |
 | PUT | `/api/admin/models/:id` | `PUT /internal/admin/models/{id}` | `Model` |
 | POST | `/api/admin/cache/invalidate` | `POST .../cache/invalidate` | `{invalidatedAt, revision?}` |
+| GET | `/api/admin/users` | `GET ...?limit=&cursor=&query=` | `{items: UserSummary[], nextCursor}` |
 | GET | `/api/admin/users/:uid/ledger` | `GET .../ledger?limit=&cursor=` | `{items,nextCursor}` |
 | GET | `/api/admin/users/:uid/usage` | `GET .../usage?limit=&cursor=` | `{items,nextCursor}` |
 | POST | `/api/admin/users/:uid/credits/grant` | `POST .../credits/grant` | `CreditGrantResult` |
+| GET | `/api/admin/revenuecat/status` | `GET /internal/admin/revenuecat/status` | `RevenueCatStatus` (no secret) |
+| GET | `/api/admin/providers` | `GET /internal/admin/providers` | `{items: ProviderStatus[]}` |
+| POST | `/api/admin/providers/:id/check` | `POST .../providers/:id/check` | `ProviderStatus` |
 
-**Assumption A1:** there is no documented single-capability GET. The BFF may either require
-the backend to add one or fetch the list and find by ID. Prefer a backend GET; until then, the
-list is small enough to find client-side, and the BFF returns 404 if absent.
+`AppClient.capabilities` is the complete matrix, one row per registry capability:
+`{capabilityId, capabilityName, kind, modelId, enabled}`. A create/update body replaces the
+whole matrix; an enabled row must reference a model present in `capability_providers` for that
+capability. Unknown capabilities, duplicate rows, and unmodeled enabled rows return 422.
 
-**Assumption A2:** the audit route documents `?limit=50` but not a cursor. The BFF passes
-`limit` and returns `nextCursor: null` unless the backend adds cursor support. The UI shows
-"Most recent 50" in that case.
+Create and rotate responses include a one-time `clientKey` (40 lowercase hex). List/get return
+only `keyRotatedAt`; the plaintext key is never recoverable. The app authenticates
+`/v1/*` with `X-App-Client-Key: <key>`. `APP_CLIENT_AUTH=required` rejects missing or unknown
+keys with 401; an enabled client is still rejected for an unmapped capability with 403
+`CAPABILITY_NOT_IN_PLAN`. Rotation invalidates the previous key immediately.
+
+`ProviderStatus.models` is an array of `{id, displayName?, capability, default?}`.
+Capabilities are the deduplicated capability IDs derived from those models. The active
+`model` must exist in `models`; otherwise the gateway falls back to `default`, sets
+`modelValid: false`, reports `status: "misconfigured"`, and `check` does not probe it.
+
+**A1 (resolved 2026-10-23):** the gateway now exposes
+`GET /internal/admin/capabilities/{id}`. The BFF still lists and finds for the detail view so it
+works with older gateway builds; the direct route is available for future use.
+
+**A2 (verified live 2026-10-23):** `capability_audit`, `credit_ledger`, and `usage_events` use
+keyset pagination. The gateway emits an opaque cursor; the BFF passes `limit` and `cursor` and
+normalizes `{items,nextCursor}`. The audit page supports "Load older".
+
+**Gateway live (2026-10-26):** the users directory, app-client audit/activity, `clientKeySha1`,
+and provider `lastCheck` are implemented. Two data gaps remain: email/tier have no write path
+(directory shows null/unknown) and no usage-event writer attaches `app_client_id` (activity is
+empty). Exact SQL, payloads, privacy notes, and the remaining acceptance checks are in
+[15-gateway-requests.md](15-gateway-requests.md).
 
 ## 3. Canonical types
 
@@ -292,7 +332,9 @@ const keys = {
   meta: ["meta"] as const,
   capabilities: ["capabilities"] as const,
   capability: (id: string) => ["capabilities", id] as const,
-  capabilityAudit: (id: string, limit: number) => ["capabilities", id, "audit", limit] as const,
+  capabilityAudit: (id: string, cursor: string | null) =>
+    ["capabilities", id, "audit", cursor] as const,
+  revenueCatStatus: ["revenuecat", "status"] as const,
   models: ["models"] as const,
   ledger: (uid: string, cursor: string | null, limit: number) =>
     ["users", uid, "ledger", cursor, limit] as const,
@@ -406,7 +448,7 @@ Request body (canonical, full representation of editable fields):
 
 | Header | Rule |
 |---|---|
-| `Cookie: __Host-bo_session` | HttpOnly, Secure, SameSite=Lax |
+| `Cookie: CF_Authorization` | Cloudflare Access cookie; HttpOnly, Secure |
 | `X-CSRF-Token` | Required on POST/PUT/DELETE; double-submit |
 | `X-Request-Id` | UUID generated per request |
 | `Content-Type: application/json` | Mutations |
@@ -416,7 +458,7 @@ Request body (canonical, full representation of editable fields):
 
 | Header | Rule |
 |---|---|
-| `Authorization: Bearer <ADMIN_API_SECRET>` | Never logged/returned |
+| `Authorization: Bearer <BACKOFFICE_API_KEY>` | 64-hex gateway key; BFF env name is `ADMIN_API_SECRET`; never logged/returned |
 | `X-Admin-Actor: <session.email>` | Mutations; also safe on reads if supported |
 | `X-Request-Id` | Same as browser request |
 | `User-Agent: memechat-backoffice-bff/<version>` | Observability |
@@ -450,19 +492,16 @@ Retries:
 - Logs: method, path template, status, duration, request ID, actor hash. Never bodies, cookies,
   secrets, or raw UIDs.
 
-## 11. Mock mode
+## 11. Live-only mode
 
-- Browser dev uses MSW with fixtures for all endpoints and error codes.
-- BFF mock mode uses an in-memory store seeded deterministically; E2E uses it for login and
-  all admin flows.
-- Mock mode is rejected when `NODE_ENV=production` or `VITE_APP_ENV=production`.
-- The mock store must cover:
-  - two capabilities (one disabled), three provider routes, one model;
-  - a ledger with `COMMITTED`, `REFUNDED`, and `PENDING_SPEND` rows;
-  - usage with `ok` and `upstream_error`;
-  - an audit history with before/after states;
-  - error toggles for 401/403/409/422/429/500/timeout.
-- Fixtures live in `tests/fixtures` and are reused by unit, BFF, and E2E tests.
+- The browser and BFF always use the gateway. There is no runtime MSW/mock store and no
+  mock/live switch.
+- The BFF requires `ADMIN_API_SECRET` at startup; if the gateway is unavailable, screens show
+  error states without substituting fixtures.
+- Contract tests use a fetch-level fake upstream gateway; it is test-only and is never imported
+  by the server runtime.
+- The local seed at `MemeChat-Gateway/seed/registry.sql` is real Postgres data for demo and
+  verification, not in-memory mock state.
 
 ## 12. Contract change process
 

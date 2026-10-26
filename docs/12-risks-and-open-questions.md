@@ -14,7 +14,7 @@
 | R2 | Exact admin schemas differ from assumptions | High | Rework, bugs | BFF anti-corruption layer; Zod; contract tests; confirm P0 fields early | First staging call |
 | R3 | Credit grant idempotency/replay behavior unclear | Medium | Double credits | Confirm with backend; requestId reuse; timeout UX; staging test | Grant design review |
 | R4 | Pagination contract differs | Medium | Broken tables | BFF normalizes; fixture coverage; backend P0 ask | First ledger call |
-| R5 | OIDC provider/allowlist undecided | Medium | Auth delay | Decide in Phase 1; support GitHub/Google; deny by default | Phase 1 start |
+| R5 | Operator login provider/allowlist | **Resolved 2026-10-22** | Auth delay | Cloudflare Access (same policy as SSH); see ADR-0008 | Resolved |
 | R6 | Admin secret compromise / shared secret | Low–Medium | Full admin | BFF-only, network allowlist, rotation, monitoring | Security review |
 | R7 | No per-operator RBAC | Medium | Insider risk / all-or-nothing | Allowlist + audit + rotation; request scoped tokens | Team growth |
 | R8 | Admin API publicly reachable | Medium | Credential spray | Firewall allowlist BFF→gateway; strong secret; monitor 401s | Server setup |
@@ -23,24 +23,25 @@
 | R11 | Radius/typography deviation from theme rejected | Low | Visual rework | Keep color authoritative; make geometry a documented decision | Design review |
 | R12 | TypeScript 7 / ESLint 10 ecosystem incompatibility | Medium | Tooling churn | Pin current stable; fallback TS 6/ESLint 9; ADR if changed | Scaffold |
 | R13 | No staging gateway or test data | Medium | Can't validate integration | Provision staging; use test UID/capability; never prod mutations | Phase 4 |
-| R14 | Scope creep (global audit, jobs, charts, user search) | High | Delay v1 | Explicit non-goals; defer table; requirement gate | Sprint planning |
-| R15 | No user directory / summary | High (product) | Support friction | Exact UID lookup + latest ledger balance; backend ask | Phase 3 |
+| R14 | Scope creep (global audit, jobs, charts) | High | Delay v1 | Explicit non-goals; defer table; requirement gate | Sprint planning |
+| R15 | User email/tier are not populated yet | Medium (product) | Directory rows show email null / tier unknown | Gateway read endpoint live; decide email privacy + RC mapping, then implement write path. See [15-gateway-requests](15-gateway-requests.md) | Phase 3 |
 | R16 | No global audit feed | Medium | Harder investigation | Per-capability audit; document limitation | Phase 3 |
 | R17 | Dashboard pressure to invent metrics | Medium | Misleading ops | No charts without API; explicit "not available" | Phase 3 |
 | R18 | Single-server deployment outage | Medium | Console down | Health checks, rollback, runbook; acceptable v1 | Phase 5 |
 | R19 | Rate limiting is in-memory/single instance | Low | Bypass at scale | One replica; shared store if scale-out | Scaling |
-| R20 | Session revocation is global only | Low–Medium | Slow operator removal | Allowlist removal + SESSION_SECRET rotation; denylist later | Security review |
+| R20 | Access session revocation is global only | Low–Medium | Slow operator removal | Remove from Access policy, revoke Access sessions; per-app policy later | Security review |
 | R21 | PII leakage via logs/error reports | Medium | Privacy incident | Redaction, no bodies, no UIDs, scrubber tests | Security review |
 | R22 | Test data uses real UIDs | Low–Medium | Privacy | Fake fixtures; review; no prod data | Test setup |
 | R23 | Contract drift after launch | Medium | UI breakage | Shared schemas, contract tests, feature flags, changelog | Backend change |
 | R24 | Browser/Safari oklch/font issues | Low | Visual defects | Test Safari; sRGB fallbacks; self-host fonts | Phase 4 |
 | R25 | On-call ownership for production approvals unclear | Medium | Slow incident response | Name approvers; environment protection; runbook | Phase 5 |
+| R26 | Static origin reachable outside the Cloudflare Tunnel | Low–Medium | Access bypass | Bind origin to localhost; firewall; validate Access JWT at the BFF/origin | Access/tunnel review |
 
 ## 2. Open questions
 
 | # | Question | Why it matters | Needed by | Owner | Status |
 |---|---|---|---|---|---|
-| Q1 | Which OIDC provider: GitHub org/team or Google Workspace? | Auth flow, allowlist, MFA | Phase 1 | Eng + ops | Open |
+| Q1 | Which OIDC provider: GitHub org/team or Google Workspace? | Auth flow, allowlist, MFA | Phase 1 | Eng + ops | **Resolved — Cloudflare Access, ADR-0008** |
 | Q2 | What are the exact admin JSON field names/casing? | Entire BFF mapping | G2 | Backend | Open |
 | Q3 | Single-capability GET? | Detail route efficiency | Phase 2 | Backend | Open |
 | Q4 | Pagination params/response for ledger/usage/audit? | Tables | G2 | Backend | Open |

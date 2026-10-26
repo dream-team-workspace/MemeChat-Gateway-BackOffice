@@ -26,6 +26,11 @@ Dependency rules are enforced by ESLint `boundaries`:
 - no `src` → `server`; no `server` → `src`
 - `shared` has no React/DOM/Node
 
+> **Update 2026-10-22:** a top-level feature is a **product domain**. Routing, audit,
+> ledger, usage, and grants are subfeatures inside their domain until the backend exposes a
+> global resource with its own route/navigation. Auth is platform infrastructure. See
+> [../03-architecture.md](../03-architecture.md) §3.4, §5.3, and §12.
+
 ## Consequences
 
 Positive:

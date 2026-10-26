@@ -2,11 +2,36 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed; no workflows are active in Phase 0 |
+| Status | Active CI: lint on PRs, clean build on `development`, deploy on `master` |
 | Remote | `git@github.com:dream-team-workspace/MemeChat-Gateway-BackOffice.git` |
 | Production branch | `master` |
 | Staging branch | `development` |
-| Deployment | Docker image + SSH to server |
+| Deployment | Node release tarball + atomic SSH deploy (systemd) |
+
+## 0. Current CI/CD (implemented 2026-10-25)
+
+Workflow: `.github/workflows/ci.yml`.
+
+| Trigger | Jobs | Behavior |
+|---|---|---|
+| PR → `development` / `master` | `Lint` | `npm ci` + `npm run lint`; required check |
+| Push → `development` | `Build` | `npm ci`, `rm -rf dist dist-server`, `npm run build`; no artifact/cache |
+| Push → `master` | `Deploy production` | build, prune dev deps, package release, SSH to server, atomic deploy + health check |
+
+Notes:
+
+- The development build job does **not** upload artifacts and does **not** use
+  `actions/cache`. It only proves the production build works; the runner is discarded.
+- The master deploy job builds in-place, then ships a release tarball. There is no
+  `DEPLOY_ENABLED` gate anymore; `environment: production` provides approval protection.
+- The only required PR check is `Lint`. `Build` runs on `development` pushes only.
+- Production is deployed to `/opt/memechat-backoffice/releases/<sha>` with an atomic
+  `current` symlink and systemd restart. The previous release is retained for rollback.
+- Server: deploy as `deploy@139.99.88.23:22` (key `github-actions-deploy`); admin
+  access is `ubuntu@admin.dream-team.works`; service `memechat-backoffice` listens on
+  `127.0.0.1:8787`.
+  See [deploy/README.md](../deploy/README.md) and
+  [14-cloudflare-access.md](14-cloudflare-access.md).
 
 ## 1. Branch model
 
@@ -23,20 +48,21 @@ chore/*   ──PR──►     │                 │
 
 | Branch | Created from | Merges into | Deploy | Protection |
 |---|---|---|---|---|
-| `master` | — | — | Production | No direct push; PR required; 1 approval; checks; linear history |
-| `development` | `master` | — | Staging | No direct push; PR required; 1 approval; checks |
+| `master` | — | — | Gated production deploy (pending setup) | No direct push; PR required; 1 approval; checks; linear history |
+| `development` | `master` | — | Build check only (staging deploy later) | No direct push; PR required; 1 approval; checks |
 | `feature/*` | `development` | `development` | — | Owner |
 | `fix/*` | `development` | `development` | — | Owner |
 | `chore/*` | `development` | `development` | — | Owner |
-| `hotfix/*` | `master` | `master` + back-merge `development` | Production | Incident process |
+| `hotfix/*` | `master` | `master` + back-merge `development` | Production (after setup) | Incident process |
 
 Release flow:
 
 1. Feature PR → `development` (squash merge).
-2. CI deploys `development` to staging on every merge.
-3. Staging verification + approval.
-4. Release PR `development` → `master`; CI must pass; production environment approval.
-5. Squash merge to `master`; CI builds/pushes the image and deploys production.
+2. CI runs a clean build check on `development`; no staging deployment yet.
+3. Staging verification + approval once staging deployment is wired.
+4. Release PR `development` → `master`; the `Lint` check must pass.
+5. Squash merge to `master`; CI builds, packages, deploys over SSH, and runs the loopback
+   health check.
 6. Tag `vX.Y.Z` on the production commit.
 
 Hotfix flow:
@@ -57,7 +83,8 @@ Configure these once in the repository settings:
   - Require a pull request before merging.
   - Require 1 approval (2 for production changes if the team grows).
   - Dismiss stale approvals on new commits.
-  - Require status checks: `verify`, `e2e`, `secret-scan`.
+  - Require status checks: `Lint` (current); add build/E2E/secret-scan checks when those
+    run on pull requests.
   - Require branches to be up to date before merging.
   - Require linear history (squash merge only).
   - Restrict who can push; disallow force pushes and deletions.
@@ -70,8 +97,8 @@ Configure these once in the repository settings:
 
 | Environment | Protection | Secrets |
 |---|---|---|
-| `staging` | No manual approval (or 1 reviewer) | Staging SSH, staging env file, staging OIDC, staging admin secret |
-| `production` | Required reviewers (≥1), wait timer optional | Production SSH, production env file, production OIDC, production admin secret |
+| `staging` | No manual approval (or 1 reviewer) | Staging SSH, staging env file, staging Access app, staging admin secret |
+| `production` | Required reviewers (≥1), wait timer optional | Production SSH, production env file, production Access app, production admin secret |
 
 Environment secrets are scoped; a workflow referencing `environment: production` cannot read
 them without approval.
@@ -84,7 +111,10 @@ them without approval.
 - Actions permissions: `contents: read` by default; elevate per job.
 - No pull_request_target with untrusted code.
 
-## 3. Workflows (planned)
+## 3. Target workflows (only the current subset is active)
+
+> Today only `.github/workflows/ci.yml` exists, with the jobs in §0. The jobs below describe
+> the target pipeline once tests, staging, and deployment are implemented.
 
 ### 3.1 `ci.yml` — verify
 
@@ -104,12 +134,12 @@ Jobs:
 2. **e2e**
    - depends on verify
    - install Playwright browsers (Chromium for PR)
-   - start BFF in mock mode + preview
+   - start the gateway admin API + BFF (live)
    - `npm run test:e2e -- --project=chromium`
    - upload traces/screenshots on failure
 3. **secret-scan**
    - `grep`/trufflehog/gitleaks for known patterns
-   - fail if `ADMIN_API_SECRET`, `SESSION_SECRET`, private keys, or `.env` content is found
+   - fail if `ADMIN_API_SECRET`, private keys, or `.env` content is found
 
 Path filters: CI still runs for docs-only changes where cheap; deploy jobs skip docs-only.
 
@@ -164,16 +194,26 @@ in-progress deploy (queue it).
 
 ## 4. Deployment topology
 
+> **Implemented 2026-10-25:** the production path is Node 24 + systemd + an atomic release
+> directory, not Docker. The Docker/compose topology below is retained as historical design
+> context; use [deploy/README.md](../deploy/README.md) for the live runbook.
+
 ### 4.1 Server
 
-Assumed: a Linux server with Docker Engine + Compose, a domain, TLS via Caddy/Nginx, and SSH
-access for the deploy user.
+Historical design assumption: Linux server with Docker Engine + Compose, a domain, TLS via
+Caddy/Nginx, and SSH access for the deploy user.
 
 ~~~text
 Internet
   │ 443
   ▼
-Caddy/Nginx (TLS, security headers, compression)
+Cloudflare Access (SSO/MFA/policy)
+  │
+  ▼
+Cloudflare Tunnel (origin bound to localhost)
+  │
+  ▼
+Caddy/Nginx or a small static server (security headers, compression)
   │ 127.0.0.1:8787
   ▼
 backoffice container
@@ -196,7 +236,7 @@ backoffice container
 
 - Separate hosts (recommended) or separate compose projects/ports on one host.
 - Separate databases (gateway staging DB) and separate RevenueCat/IdP apps if possible.
-- Staging must never point at production admin API or production OIDC client.
+- Staging must never point at the production admin API or production Access application.
 - Production deploys only from `master`; staging only from `development`.
 
 ### 4.3 Domains (placeholders)
@@ -265,25 +305,25 @@ Use environment-scoped secrets, not repository-wide, for production.
 | `PORT` | yes | `8787` |
 | `APP_ORIGIN` | yes | Exact public origin |
 | `ADMIN_API_BASE_URL` | yes | Gateway origin, no trailing slash |
-| `ADMIN_API_SECRET` | yes | Secret; fail-closed if empty |
-| `SESSION_SECRET` | yes | ≥32 random bytes |
-| `OIDC_ISSUER` | yes | Provider issuer |
-| `OIDC_CLIENT_ID` | yes | OAuth app |
-| `OIDC_CLIENT_SECRET` | yes | Secret |
-| `OIDC_REDIRECT_URI` | yes | `https://host/api/auth/callback` |
-| `OIDC_ALLOWED_DOMAINS` | one of | Comma-separated |
-| `OIDC_ALLOWED_LOGINS` | one of | Comma-separated |
+| `ADMIN_API_SECRET` | yes | Secret; required at startup in every environment |
+| `ADMIN_API_BASE_URL` | yes | Gateway base URL, e.g. `http://127.0.0.1:8080` |
+| `CF_ACCESS_TEAM_DOMAIN` | BFF | `rough-water-d6a6.cloudflareaccess.com` |
+| `CF_ACCESS_AUD` | BFF | Access application AUD tag (not secret) |
+| `VITE_DEV_AUTH_EMAIL` | dev only | Local identity for `npm run dev`; ignored in production builds |
 | `LOG_LEVEL` | no | `info` |
 | `REQUEST_TIMEOUT_MS` | no | `10000` |
 | `TRUST_PROXY` | yes | `1` behind Caddy/Nginx |
-| `ADMIN_API_MODE` | yes | `live` in production |
-| `DEV_AUTH_BYPASS` | no | Must be absent/false in production |
+
+> **2026-10-22 — Access update:** Operator authentication is Cloudflare Access. There is no
+> app-owned `SESSION_SECRET` and no OIDC client secret. `VITE_DEV_AUTH_EMAIL` is for
+> `npm run dev` only and is ignored by production builds. The future BFF uses
+> `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` to validate `Cf-Access-Jwt-Assertion`.
 
 Startup validation must reject:
 
-- production with `ADMIN_API_MODE=mock`
-- production with `DEV_AUTH_BYPASS`
-- missing secrets
+- missing `ADMIN_API_SECRET` in any environment
+- a production build that enables a development identity (the compile-time `import.meta.env.DEV` guard prevents it)
+- missing `CF_ACCESS_AUD` in production
 - insecure `APP_ORIGIN` (non-HTTPS except localhost)
 
 ## 8. Health, smoke, and rollback
@@ -333,40 +373,48 @@ Target: < 5 minutes. No rebuild; pull the previous immutable image.
 
 ## 10. First-time setup checklist
 
-- [ ] Create the empty GitHub repository (done) and confirm `master` is the default branch.
-- [ ] Push `master` and `development` (Phase 0).
-- [ ] Protect both branches; require checks.
-- [ ] Create `staging` and `production` environments; add reviewers.
-- [ ] Add SSH/GHCR secrets.
-- [ ] Provision the server(s), Docker, proxy, TLS, deploy user, directories.
-- [ ] Create OIDC apps (staging/production) and allowlists.
-- [ ] Set gateway `ADMIN_API_SECRET` and network allowlist.
-- [ ] Add the runtime env file (0600).
-- [ ] Add `deploy.sh` and `docker-compose.yml` to the repo in Phase 1.
-- [ ] Run a staging deploy and a rollback drill.
+- [x] Create the GitHub repository and confirm `master` is the default branch.
+- [x] Push `master` and `development` (planning baseline).
+- [x] Add `.github/workflows/ci.yml` (lint on PR, build on `development`, deploy on `master`).
+- [ ] Protect both branches; require the `Lint` check on PRs.
+- [ ] Create the `production` environment and add reviewers.
+- [ ] Create the `staging` environment/workflow when staging deployment is implemented.
+- [ ] Add the five deployment secrets and push the workflow to GitHub.
+- [x] Provision the server, Node 24, systemd service, `deploy` user, release helper, directories.
+- [ ] Create the Cloudflare Access application and allowlist policy.
+- [ ] Set the gateway `ADMIN_API_SECRET` in `/etc/memechat-backoffice.env`.
+- [x] Add the runtime env file (0640).
+- [x] Add `deploy/` scripts and systemd units.
+- [ ] Run a staging deploy and a rollback drill once staging exists.
 - [ ] Document on-call/owner for production approvals.
 
-## 11. What Phase 0 does and does not do
+## 11. Current CI status
 
-Phase 0 pushes the planning corpus and creates the branches. It does **not** create active
-workflows, because there is no app to build or deploy yet and a failing workflow on `master`
-would be noise. Phase 1 adds:
+Implemented (2026-10-25):
 
-- `package.json` scripts
-- `Dockerfile` / `.dockerignore`
-- `docker-compose.yml`
-- `deploy.sh`
-- `.github/workflows/ci.yml`, `deploy-staging.yml`, `deploy-production.yml`
-- environment configuration and branch protection
+- `.github/workflows/ci.yml`: `Lint` on PRs, clean `Build` on `development`, and
+  `Deploy production` on `master`.
+- `npm run lint` with ESLint 10 + typescript-eslint.
+- No artifact upload and no `actions/cache`; `dist` is removed before the build and discarded.
+- Node 24 systemd deployment to `deploy@139.99.88.23`, atomic release + rollback helper.
+- Initial release deployed and healthy on `127.0.0.1:8787`.
 
-Until then, `master` and `development` contain the same planning commit.
+Still pending:
+
+- Add the GitHub deployment secrets and push/activate the workflow.
+- Create the Cloudflare Access application, set `CF_ACCESS_AUD`, add the tunnel/DNS route.
+- Staging deployment workflow.
+- Automated tests, E2E, and secret scanning.
+
+Branch protection and environment reviewers must be configured in GitHub; the repository
+cannot enforce them. The required PR check is `Lint`.
 
 ## 12. Operational runbooks (to write in Phase 1)
 
 - Deploy staging/production.
 - Roll back.
-- Rotate `ADMIN_API_SECRET` / `SESSION_SECRET`.
-- Rotate OIDC client secret.
+- Rotate `ADMIN_API_SECRET`.
+- Revoke Cloudflare Access sessions / update the Access policy.
 - Revoke an operator.
 - Gateway admin API outage.
 - Certificate/proxy failure.

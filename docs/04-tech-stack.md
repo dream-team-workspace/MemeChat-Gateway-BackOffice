@@ -24,7 +24,7 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 |---|---|---|---|
 | Runtime (CI/prod) | Node.js LTS | 24.x | Vite 8 requires Node ≥20.19/22.12; 24 LTS is supported by the ecosystem and GitHub Actions. Local Node 26.5 is compatible. |
 | Package manager | npm | 11.x | Already present, lockfile-based, no extra tool; workspaces not needed |
-| Language | TypeScript | 7.0.x | Strict typing, type-only imports, current stable. Fall back to 6.0.x only if a required ESLint/plugin blocks TS 7; record the pin in an ADR. |
+| Language | TypeScript | 6.0.3 (pinned) | Strict typing, type-only imports. The template pins 6.0.3; TS 7 is deferred until the ESLint/TanStack toolchain is verified together, then recorded in an ADR. |
 | Module format | ESM | — | Vite, Hono, and modern Node all use ESM; no dual-package complexity |
 
 ### 2.2 Browser application
@@ -34,7 +34,7 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 | UI runtime | React + React DOM | 19.3.x | Stable concurrent features, ecosystem, team familiarity |
 | Build tool | Vite | 8.3.x | Fast dev server, native ESM, first-class Tailwind v4 plugin, static output |
 | Styling | Tailwind CSS + @tailwindcss/vite | 4.3.x | CSS-first config, semantic tokens, no PostCSS chain |
-| Component source | shadcn CLI + generated primitives | CLI 4.22.x | Open code, owned components, accessible primitives |
+| Component source | shadcn-style primitives owned in the repo; shadcn CLI when adding registry components | CLI 4.22.x | Open code, owned components, accessible primitives |
 | Icons | lucide-react | 1.61.x | Consistent, tree-shakeable, shadcn default |
 | Toasts | sonner | 2.0.x | shadcn's current toast primitive, accessible live regions |
 | Animation helper | tw-animate-css | 1.4.x | shadcn-compatible utilities without a runtime animation library |
@@ -58,7 +58,7 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 |---|---|---|---|
 | HTTP framework | Hono | 4.13.x | Small, Web-standard, excellent testability via `app.request` |
 | Node adapter | @hono/node-server | current | Serve HTTP + static assets |
-| OIDC | Arctic | 3.7.x | Provider-specific OAuth helpers (GitHub/Google), PKCE support |
+| Access JWT | jose | current | Verify Cloudflare Access tokens in the BFF (JWKS, issuer, audience) |
 | JWT/session signing | jose | current | Standards-based JWS/JWE; no custom crypto |
 | Env validation | Zod | 4.6.x | Fail fast on missing/unsafe config |
 | Logging | pino | current | Structured JSON with redaction hooks |
@@ -72,8 +72,8 @@ This keeps deployment atomic and the contract in one place without a monorepo to
 | HTTP mocking | MSW | 3.0.x | Same handlers in browser, Node, and Playwright |
 | E2E | Playwright | 1.64.x | Cross-browser, tracing, visual screenshots |
 | Accessibility | axe-core + @axe-core/playwright + vitest-axe | current | Automated WCAG checks in unit and E2E |
-| Lint | ESLint + typescript-eslint | 10.13.x / 8.72.x | Flat config, typed rules |
-| Formatting | Prettier + Tailwind plugin | 3.9.x / 0.8.x | Deterministic formatting |
+| Lint | ESLint + typescript-eslint + React hooks/refresh plugins | 10.13.0 / 8.72.0 | Flat config, typed rules; `npm run lint` is the CI PR check |
+| Formatting | Prettier + Tailwind plugin | planned | Not installed yet; add before enforcing a format check |
 | Boundary linting | eslint-plugin-boundaries | current | Enforce feature/folder dependency rules |
 
 ### 2.6 Delivery
@@ -146,11 +146,10 @@ BFF (runtime, secret):
 
 - `NODE_ENV`, `PORT`, `APP_ORIGIN`
 - `ADMIN_API_BASE_URL`, `ADMIN_API_SECRET`
-- `SESSION_SECRET`
-- `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`
-- `OIDC_ALLOWED_DOMAINS` / `OIDC_ALLOWED_LOGINS`
+- `CF_ACCESS_TEAM_DOMAIN`
+- `CF_ACCESS_AUD`
+- `VITE_DEV_AUTH_EMAIL` (development only)
 - `DEV_AUTH_BYPASS` — local only; startup rejects in production
-- `ADMIN_API_MODE` — `live|mock`; production must be `live`
 - `LOG_LEVEL`, `REQUEST_TIMEOUT_MS`, `TRUST_PROXY`
 
 Full matrix and deployment values: [10-ci-cd-and-environments.md](10-ci-cd-and-environments.md).

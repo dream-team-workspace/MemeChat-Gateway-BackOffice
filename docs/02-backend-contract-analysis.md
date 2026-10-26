@@ -4,20 +4,19 @@
 |---|---|
 | Analyzed checkout | `/home/dani/GolandProjects/MemeChat-Gateway` |
 | Commit state | Working tree at analysis time |
-| Date | 2026-10-21 |
+| Date | 2026-10-21 (re-checked 2026-10-23) |
 | Backend sources | `docs/plan-ai-gateway.md`, `docs/phase-2/backend-management-plan.md`, `docs/phase-1/0001-baseline-report.md`, `cmd/gateway/routes.go` |
-| Status | Contract-planned; **admin routes not implemented in the current checkout** |
+| Status | Admin API **implemented in the gateway working tree** and verified live on 2026-10-23 |
 
 ## 1. Executive summary
 
-The gateway documents a complete backend-management API under `/internal/admin/*`, but the
-current checkout mounts only a subset of the app routes plus `/healthz` and two internal
-placeholders. There is no admin sub-mux, no `AdminAuth` middleware, and no admin handler
-package yet. The planning doc marks the admin surface as Phase A/B work.
+The gateway documents a complete backend-management API under `/internal/admin/*`. That API is
+now implemented in the local gateway working tree: an admin sub-mux, constant-time
+`AdminAuth`, `X-Admin-Actor` enforcement, Postgres-backed capability/model/audit/ledger
+handlers, and RevenueCat-backed grants. The BFF has been exercised in `live` mode against it.
 
-Implication: **the backoffice cannot integrate against a live admin API today.** The frontend
-must be built mock-first, behind a typed contract, and switched to the real API when the
-backend routes land. This is a schedule dependency, not a reason to invent endpoints.
+The backoffice is now **live-only**: it requires `ADMIN_API_SECRET` and forwards every read and
+mutation to the gateway. There is no runtime mock store or fixture fallback.
 
 ## 2. What exists today (verified)
 
@@ -30,19 +29,24 @@ From `cmd/gateway/routes.go`:
 | `GET /v1/capabilities` | Mounted, `501` |
 | `POST /v1/chat/stream` | Mounted, `501` |
 | `GET /v1/requests/{requestId}` | Mounted, `501` |
-| `POST /v1/tts` | Mounted, `501` |
+| `POST /v1/tts` | Implemented (Kokoro streaming) |
 | `POST /v1/stt` | Implemented (Salad) |
+| `POST /v1/embeddings` | Implemented (Voyage) |
 | `POST /v1/feedback` | Mounted, `501` |
 | `GET/PUT /v1/consent` | Mounted, `501` |
 | `POST /internal/rc/webhook` | Mounted, `501` |
 | `POST /internal/jobs/sweep` | Mounted, `501` |
-| `/internal/admin/*` | **Not mounted** |
-| `/readyz`, `/metrics` | Not mounted |
+| `/internal/admin/*` | Mounted (Postgres-backed admin API) |
+| `/readyz` | Mounted (Postgres ping) |
+| `/metrics` | Not mounted |
 
-The backend's own docs state: "AdminAuth ... To build (Phase A)", and the admin route catalog
-is a plan. The admin API is therefore a **contract**, not a running dependency.
+**2026-10-23 re-check:** the gateway serves TTS, STT, and embeddings; the Phase 2 seed defines
+eight capabilities (chat.standard, chat.premium, tts, stt, and four embeddings profiles). The
+admin routes are now mounted in `cmd/gateway/routes.go`, `/readyz` checks Postgres, and the
+BFF live path was verified end-to-end. The local registry seed and model catalog contain the
+same rows; the console reads them from Postgres.
 
-## 3. Planned admin API surface
+## 3. Admin API surface (implemented)
 
 | Method & path | Purpose | UI use |
 |---|---|---|
@@ -50,17 +54,21 @@ is a plan. The admin API is therefore a **contract**, not a running dependency.
 | `PUT /internal/admin/capabilities/{id}` | Upsert capability fields; bump revision; audit | Edit form |
 | `POST /internal/admin/capabilities/{id}/toggle` | Fast kill switch `{enabled, reason}` | Kill switch |
 | `PUT /internal/admin/capabilities/{id}/providers` | Atomically replace ordered chain | Routing editor |
-| `GET /internal/admin/capabilities/{id}/audit` | Audit history, `changed_at DESC`, `?limit=50` | Audit panel |
+| `GET /internal/admin/capabilities/{id}/audit` | Audit history, `changed_at DESC`, `?limit=&cursor=` keyset | Audit panel |
 | `GET /internal/admin/models` | App model catalog | Model list |
 | `PUT /internal/admin/models/{id}` | Upsert model row | Model editor |
 | `POST /internal/admin/cache/invalidate` | Reload in-memory registry snapshot | Operations |
+| `GET /internal/admin/revenuecat/status` | Non-secret RC configuration status | Operations + grant gating |
+| `GET /internal/admin/providers` | Provider configuration projection | Providers page |
+| `POST /internal/admin/providers/{id}/check` | Safe provider health probe | Providers page |
 | `GET /internal/admin/users/{uid}/ledger` | Ledger rows, keyset pagination | Ledger table |
 | `GET /internal/admin/users/{uid}/usage` | Usage events, keyset pagination | Usage table |
 | `POST /internal/admin/users/{uid}/credits/grant` | Positive CRD deposit via RevenueCat | Grant form |
 
 ### Auth and headers
 
-- `Authorization: Bearer <ADMIN_API_SECRET>` (constant-time, fail-closed when unset).
+- `Authorization: Bearer <BACKOFFICE_API_KEY>` (64 hex, constant-time, fail-closed when
+  unset). The BFF’s `ADMIN_API_SECRET` holds the same value.
 - `X-Admin-Actor: <operator-id>` required on mutating requests; stored in
   `capability_audit.changed_by`.
 - `X-Request-Id` is accepted by the gateway and echoed.
@@ -88,10 +96,10 @@ These are blockers or assumptions, not implementation details.
 
 | # | Gap | Impact | Proposed handling |
 |---|---|---|---|
-| G1 | Admin routes/auth not implemented | No live integration | Mock-first; feature flag; staging integration when backend lands |
-| G2 | Exact JSON casing/field names unspecified | Mapping bugs | BFF anti-corruption layer; Zod parse; confirm with backend |
-| G3 | Pagination query/response shape unspecified | Table paging may be wrong | Assume `?limit=&cursor=`; BFF normalizes to `{items,nextCursor}`; confirm |
-| G4 | Credit grant request/response fields unspecified | Money flow risk | Propose `{amount, reason, requestId}`; confirm; never guess silently |
+| G1 | **Resolved 2026-10-23** — admin routes/auth implemented and live-verified | Live integration unblocked | Publish/review the gateway changes; confirm staging |
+| G2 | **Resolved 2026-10-23** — gateway emits canonical camelCase and accepts snake_case mutations; verified live | Mapping bugs | Keep BFF Zod validation + contract tests |
+| G3 | **Resolved 2026-10-23** — opaque `(timestamp,id)` cursor and `{items,nextCursor}` verified live | Table paging | Keep keyset indexes; test pagination |
+| G4 | **Verified against a local RC stub 2026-10-23** — request/response contract works; production RC credentials still required | Money flow risk | Configure RC secrets in staging; never expose them to the browser |
 | G5 | No user list/search or user summary | Dashboard/support cannot browse users | Exact-UID lookup only; request an endpoint |
 | G6 | No global audit/activity endpoint | No cross-capability timeline | Per-capability audit only; defer |
 | G7 | No aggregate usage/metrics endpoint | Dashboard would be fake | Show counts derived from capabilities/models + health; no invented metrics |
@@ -100,7 +108,7 @@ These are blockers or assumptions, not implementation details.
 | G10 | Provider adapter names are server-side | UI cannot offer a definitive enum | Free text + suggestions from existing chains; helper text |
 | G11 | `PUT` upsert semantics (partial vs full) unspecified | Accidental field reset | Send full representation; preserve unknown fields; confirm |
 | G12 | Toggle has no optimistic-concurrency token | Race with another operator | Refetch after; show revision/updated time; no blind overwrite |
-| G13 | `ADMIN_API_SECRET` is all-or-nothing | No least privilege / per-operator scopes | BFF OIDC + allowlist; request scoped tokens/RBAC later |
+| G13 | `ADMIN_API_SECRET` is all-or-nothing | No least privilege / per-operator scopes | BFF Access JWT + policy; request scoped tokens/RBAC later |
 | G14 | Admin API may be publicly reachable | Secret + network exposure | TLS, firewall allowlist BFF→gateway, rotate secret |
 | G15 | No CORS policy for admin routes | Browser direct calls impossible/unsafe | BFF same-origin; never expose admin API to browser |
 | G16 | Error envelope for admin routes not explicitly stated | Inconsistent client errors | Assume same `{code,message,requestId,details}`; BFF normalizes |
@@ -117,7 +125,7 @@ already returns camelCase, the adapter is a pass-through with validation.
 | BFF → gateway | `Authorization: Bearer <ADMIN_API_SECRET>` | Server only |
 | BFF → gateway | `X-Admin-Actor: <session.email>` | Every mutating request |
 | BFF → gateway | `X-Request-Id: <uuid>` | Generated or propagated |
-| Browser → BFF | `Cookie: __Host-bo_session=...` | HttpOnly, Secure, SameSite=Lax |
+| Browser → BFF | `Cookie: CF_Authorization=...` | Cloudflare Access cookie; HttpOnly, Secure |
 | Browser → BFF | `X-CSRF-Token` | Required on non-GET |
 | Browser → BFF | `Origin` | Validated against `APP_ORIGIN` |
 
@@ -153,16 +161,16 @@ error code/message but strips provider details and secrets.
 
 ## 6. Integration strategy
 
-1. **Mock now.** MSW handlers implement the canonical contract with realistic fixtures for
-   every route and error code.
-2. **Contract tests.** Zod schemas parse every fixture and every real response; failures are
-   loud, not silently coerced.
+1. **Live gateway only.** The BFF forwards every request to `/internal/admin/*`; there is no
+   runtime mock mode. Tests use a fetch-level gateway fixture, never the production code path.
+2. **Contract tests.** Zod schemas parse every upstream response; failures are loud, not
+   silently coerced.
 3. **BFF adapter.** One module owns upstream mapping (casing, pagination, error normalization).
    Feature code never sees an upstream shape.
-4. **Feature flag.** `VITE_ADMIN_API_MODE=mock|live` (build-time) and a BFF `ADMIN_API_MODE`
-   (runtime). Production must be `live`; mock mode is rejected at startup in production.
-5. **Pilot route.** Integrate `GET /capabilities` first, then reads, then mutations. Do not
-   cut over grants until idempotency behavior is verified end-to-end.
+4. **No mode flag.** `ADMIN_API_SECRET` is required at startup in every environment; production
+   also requires `CF_ACCESS_AUD`. The UI has no mock/live switch.
+5. **Mutations.** Registry, kill switch, and grants are pessimistic and audited; a successful
+   RC grant is the reachability check.
 6. **Contract change log.** Any backend schema change updates `docs/06-api-integration.md`
    and the shared Zod schema in the same PR.
 
@@ -191,6 +199,24 @@ error code/message but strips provider details and secrets.
 - Capability/model soft-delete.
 - Bulk operations.
 - Export endpoints.
+
+### BackOffice additions (implemented 2026-10-26)
+
+**Update 2026-10-26:** the gateway shipped `migrations/0004_backoffice_contract.sql` and the
+five BackOffice additions: the users directory read endpoint, `clientKeySha1`, app-client admin
+audit, the per-client activity read endpoint, and persisted provider health. Verified live
+through the BFF and console.
+
+Two data-source gaps remain and are not console bugs:
+
+- `users.email` stays `null` because Firebase auth currently returns only uid, and `users.tier`
+  stays `unknown` until the RevenueCat entitlement mapping is decided. The directory shows
+  “Email not captured” / “Unknown” with a note.
+- `usage_events.app_client_id` is never written because there is no usage-event writer yet;
+  the activity screen correctly shows “No user activity recorded”.
+
+The remaining gateway work, privacy decisions, and acceptance checks are in
+[15-gateway-requests.md](15-gateway-requests.md).
 
 ## 8. Security and privacy notes
 

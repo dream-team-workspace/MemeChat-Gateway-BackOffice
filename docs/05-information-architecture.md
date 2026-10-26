@@ -15,27 +15,33 @@ The sidebar has three groups and a footer:
 OPERATE
   Overview
   Capabilities
+  App clients
   Models
+  Providers
 
 SUPPORT
   Users
 
 SYSTEM
   Operations
-  Settings
 
 ────────────────────────────
-[STAGING] or [PRODUCTION]     ← environment badge
-[avatar] operator@email       ← user menu: theme, docs, sign out
+Settings                     ← sidebar footer; no environment panel or operator block
 ~~~
+
+The top bar carries the environment badge and theme toggle; identity and sign-out live in
+Settings.
 
 - **Overview** is the landing route.
 - **Capabilities** is the primary operational surface.
-- **Users** is support-focused; it starts with a UID search, not a directory.
+- **App clients** manages consumer-app identities, active capability grants, audit, and
+  activity.
+- **Users** is support-focused: a signed-in directory with a compact ID/Email lookup at the
+  top right.
 - **Operations** holds cache invalidation and environment/health details.
-- **Settings** holds appearance and session information only.
-- The environment badge is always visible and is read from the BFF, never from a client-only
-  build flag.
+- **Settings** holds appearance, session information, and sign-out.
+- The environment badge is always visible in the top bar and is read from the BFF, never from a
+  client-only build flag.
 - The sidebar collapses to icons at <1280px and becomes a sheet at <1024px.
 
 ## 2. App shell
@@ -60,42 +66,52 @@ Breadcrumb examples:
 
 | Route | Page | Auth | Primary data | Primary action |
 |---|---|---|---|---|
-| `/login` | Sign in | Public | Session | Continue with GitHub/SSO |
+| `/login` | Sign in | Public | Cloudflare Access identity | Continue with Cloudflare Access |
 | `/` | Overview | Required | Capabilities, models, health | Review incident surface |
 | `/capabilities` | Capability list | Required | `GET /capabilities` | Open a capability |
-| `/capabilities/:capabilityId` | Capability detail | Required | capability + providers | Save changes |
+| `/capabilities/:capabilityId` | Capability overview | Required | capability + providers | Save changes |
+| `/capabilities/:capabilityId/routing` | Provider routing | Required | capability providers | Replace chain |
 | `/capabilities/:capabilityId/audit` | Audit history | Required | `GET .../audit` | Inspect a change |
+| `/app-clients` | App clients | Required | `GET /app-clients` | Add/open client |
+| `/app-clients/:clientId` | Client access, audit, activity | Required | client + capabilities + providers + audit/activity | Save grants, inspect audit |
 | `/models` | Model catalog | Required | `GET /models` | Add/edit model |
-| `/users` | User lookup | Required | none | Look up UID |
-| `/users/:uid` | User detail | Required | ledger + usage | Grant credits |
+| `/providers` | Provider connections | Required | provider status + capabilities | Check health |
+| `/users` | User directory + lookup | Required | users directory | Find by ID/email |
+| `/users/:uid` | Redirect to ledger | Required | — | — |
+| `/users/:uid/ledger` | User ledger | Required | ledger | Inspect state |
+| `/users/:uid/usage` | User usage | Required | usage | Inspect metadata |
 | `/operations` | Operations | Required | health, cache action | Invalidate cache |
 | `/settings` | Settings | Required | session | Change appearance |
 | `/forbidden` | 403 | Required | session | Go back |
 | `*` | 404 | Public | none | Go home |
 
-All routes except `/login`, `/forbidden`, and the 404 are inside `AppShell`.
+All routes except `/login`, `/forbidden`, and the 404 are inside `AppShell`. Tabs are real
+nested routes, not local state: the capability tabs are `/routing` and `/audit`, and the user
+tabs are `/ledger` and `/usage`.
 
 ## 4. Page specifications
 
 ### 4.1 Login — `/login`
 
-**Purpose:** establish an operator session through the identity provider.
+**Purpose:** establish an operator session through Cloudflare Access.
 
-Layout: centered card on the app background; brand wordmark, one-sentence description, one
-primary button ("Continue with GitHub" or "Continue with SSO"), a help line for access
-requests. No email/password fields in v1.
+Layout: split brand/operator panel on desktop, compact form on mobile; one primary button
+("Continue with Cloudflare Access"), a note that Access handles SSO/MFA, and a small
+workspace-restriction line. No password or email field.
 
 States:
 
 - Default.
-- Redirecting (button pending, provider name).
-- Error: `?error=access_denied`, `?error=not_allowed`, `?error=state`. Human message,
-  request ID, retry.
-- Session already valid → redirect to `returnTo` or `/`.
-- Dev bypass (local only): visible banner "Development auth — no identity provider".
+- Access identity response pending (route guard).
+- Access login loop / no Access in front of a local preview: the login button re-requests the
+  page; Access intercepts when the cookie is missing.
+- Session already valid → redirect to `/`.
+- Local development only: the login page is reachable for review and the development identity
+  comes from `VITE_DEV_AUTH_EMAIL`.
 
-Acceptance: keyboard-only login works; no secret in the page; open redirect is prevented by
-validating `returnTo` to a same-origin path.
+Acceptance: keyboard-only login works; no password or identity token is stored in the browser;
+the page never renders protected content without an Access identity. See
+[14-cloudflare-access.md](14-cloudflare-access.md).
 
 ### 4.2 Overview — `/`
 
@@ -105,13 +121,14 @@ Layout:
 
 1. Page header: "Overview", environment badge, last refreshed.
 2. Status row: Gateway health (liveness/readiness), Admin API reachability, Console version.
-3. Count cards: capabilities (total / enabled / disabled), models (total / enabled).
-4. Quick actions: Open capabilities, Look up user, Invalidate cache.
+3. Count cards: capabilities (total / enabled / disabled), models (total / enabled), integrated
+   clients (total / enabled), environment.
+4. No quick-actions card; navigation lives in the sidebar.
 5. "Needs attention" panel: disabled capabilities, stale registry note, failed health probe.
    Only real data; no invented charts.
 
-Data: capabilities query, models query, `/api/health`. Counts are derived client-side from
-the full lists (the admin API returns all capabilities/models).
+Data: capabilities, models, app-client, and `/api/health` queries. Counts are derived
+client-side from the full lists (the admin API returns all capabilities/models/clients).
 
 States: loading skeletons per card; partial failure keeps other cards; gateway down shows a
 degraded banner and still allows reading cached data; no fake zeros.
@@ -145,7 +162,11 @@ data warning if refetch fails.
 Header: breadcrumb, ID, display name, status badge, revision, last updated, "View audit"
 link, overflow menu (copy ID, open audit).
 
-Tabs/sections:
+Tabs are nested URLs: the base page is the overview/configuration, routing lives at
+`/capabilities/:id/routing`, and audit at `/capabilities/:id/audit`. A tab switch is a route
+change, not local state.
+
+Sections:
 
 1. **Overview** — read-only summary: kind, streaming, reasoning, image, min app version,
    cost formula, limits, fair use, provider count.
@@ -178,7 +199,7 @@ Rules:
   create capabilities in v1.
 - Unknown top-level fields are not displayed; nested JSON unknown keys are preserved.
 
-### 4.5 Provider routing (within detail)
+### 4.5 Provider routing — `/capabilities/:capabilityId/routing`
 
 **Purpose:** change which provider/model serves a capability and in what order.
 
@@ -248,33 +269,40 @@ upsert. No delete; disable instead. ID cannot be changed after creation (API pat
 Rules: warn on duplicate sort order; show which capability it points to; if the capability is
 disabled, show a warning but still allow saving.
 
-### 4.9 User lookup — `/users`
+### 4.9 Users — `/users`
 
-**Purpose:** start a support investigation without a user directory.
+**Purpose:** start a support investigation from the signed-in user directory, or jump straight
+to a UID.
 
-Layout: centered search panel: "Find a user by Firebase UID"; input; "Look up" button; help
-text with where to find a UID. Recent UIDs are **not** persisted by default.
+Layout: page header with a compact search panel at the top right: ID/Email mode toggle, input,
+Find. The directory table below lists email (or “Email not captured”), tier, UID, last seen,
+joined, and a link to the ledger.
 
-Behavior: trim, validate against `[A-Za-z0-9_-]{1,128}`, navigate to `/users/:uid`.
-Invalid input is inline, not a toast. No fuzzy match; no email search (API gap).
+Behavior: ID mode trims, validates `[A-Za-z0-9_-]{1,128}`, and navigates to
+`/users/:uid/ledger`. Email mode validates the address and filters the directory through
+`GET /api/admin/users?query=`. Invalid input is inline, not a toast. Recent searches/emails are
+**not** persisted. The bare `/users/:uid` redirects to the ledger tab.
 
-States: default, invalid, loading (during navigation), error if the user has no ledger
-(empty state with usage link).
+States: default/loading; ID lookup works independently; an older gateway without the directory
+shows a neutral pending state; empty email filter result; error with retry. Rows with no stored
+email/tier show “Email not captured” / “Unknown” and a note that the gateway records them on
+sign-in. See [FR-018](requirements/FR-018-user-directory-and-tier.md).
 
-### 4.10 User detail — `/users/:uid`
+### 4.10 User detail — `/users/:uid/ledger` and `/users/:uid/usage`
 
-**Purpose:** explain billing and usage for one UID.
+**Purpose:** explain billing and usage for one UID. Tabs are real URLs; the bare
+`/users/:uid` redirects to `/ledger`.
 
 Header: UID (mono, copy), status hints, "Grant credits" primary action. "Latest known
 balance" card derived from the newest ledger row with a caveat ("from the latest ledger row;
 not a live RevenueCat balance"). If no rows, show "No ledger activity".
 
-Tabs:
+Tabs (nested routes):
 
-1. **Ledger** — table: created, capability, request ID (mono), state (internal state badge),
-   reserved, committed, units, balance after, RC txn, attempts. Cursor pagination.
-2. **Usage** — table: created, capability, provider/model, input/output tokens, chars,
-   seconds, credits, status, latency. Cursor pagination.
+1. **Ledger** — `/users/:uid/ledger`: created, capability, request ID (mono), state (internal
+   state badge), reserved, committed, units, balance after, RC txn, attempts. Cursor pagination.
+2. **Usage** — `/users/:uid/usage`: created, capability, provider/model, input/output tokens,
+   chars, seconds, credits, status, latency. Cursor pagination.
 
 Row click opens a detail sheet with full JSON (read-only). No content fields exist.
 
@@ -425,9 +453,10 @@ work at 360px, even if the tables scroll horizontally.
 
 - v1 has one role: authenticated, allowlisted operator. All operators can do everything the
   BFF exposes. The UI does not fake role management.
-- The BFF returns the environment in `/api/auth/me` or `/api/health`; the shell displays it.
+- The BFF returns the environment in `/api/meta` or `/api/health`; the SPA reads the operator
+  identity from `/cdn-cgi/access/get-identity`. The shell displays both.
 - Production changes require the production environment; staging never proxies to production.
-- A future RBAC change adds a `permissions` array to the session and hides/disables actions;
+- A future RBAC change adds permissions to the BFF identity model and hides/disables actions;
   the API remains the final authority.
 
 ## 9. Content patterns
@@ -450,6 +479,5 @@ work at 360px, even if the tables scroll horizontally.
 - Drag-and-drop table columns.
 - Real-time collaborative editing.
 - Global audit/activity feed.
-- User directory browsing.
 - Job triggers.
 - File export.

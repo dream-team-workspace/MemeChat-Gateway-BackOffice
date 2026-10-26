@@ -1,7 +1,8 @@
 # Documentation index
 
-This repository is documentation-first. The application does not exist yet; these files are
-the build contract for Phase 1 onward.
+This repository is documentation-first. The planning corpus is complete; the Phase 1
+operator console, BFF, and live gateway admin integration are implemented on
+`feature/implementation`. Playwright/E2E coverage and production deployment are still pending.
 
 ## Start here
 
@@ -25,6 +26,8 @@ the build contract for Phase 1 onward.
 
 - [Tech stack](04-tech-stack.md)
 - [API integration](06-api-integration.md)
+- [Gateway requests for the BackOffice](15-gateway-requests.md) — pending admin endpoints and
+  data model changes, with exact payloads and rollout order.
 - [Engineering standards](08-engineering-standards.md)
 - [Testing strategy](09-testing-strategy.md)
 - [Architecture decision records](adr/)
@@ -32,6 +35,7 @@ the build contract for Phase 1 onward.
 **Security / deployment**
 
 - [Security model](07-security-model.md)
+- [Cloudflare Access setup](14-cloudflare-access.md)
 - [CI/CD and environments](10-ci-cd-and-environments.md)
 
 **New team members**
