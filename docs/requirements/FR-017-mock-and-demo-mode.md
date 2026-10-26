@@ -1,8 +1,12 @@
 # FR-017 — Mock and demo mode
 
+> **Superseded 2026-10-24.** The backoffice is live-only against the gateway admin API. The
+> mock store and runtime mode switch were removed; contract tests use a fetch-level test
+> double only. This requirement is retained as planning history.
+
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Superseded |
 | Priority | Must (development) |
 | Phase | 1 |
 | Owner | Frontend + BFF |
@@ -92,7 +96,7 @@ entry points.
 
 - Contract tests run against fixtures.
 - E2E uses BFF mock mode for all flows.
-- A CI check asserts `ADMIN_API_MODE=live` in the production deploy config.
+- Historical: the live-only runtime has no mode flag; the BFF requires `ADMIN_API_SECRET`.
 - Unit test the production guard.
 
 ## Open questions

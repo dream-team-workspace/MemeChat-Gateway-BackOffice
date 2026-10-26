@@ -601,7 +601,9 @@ Internal ledger states are displayed verbatim in a monospace badge with a toolti
 - Dark background is pure black; cards are `#17181c`-equivalent. Borders must remain
   visible; do not use pure black on pure black.
 - Test every screen in both modes, including charts, JSON viewers, and disabled states.
-- The theme toggle is in the user menu, not the primary navigation.
+- The theme toggle is in the top bar, not the primary navigation. The sidebar footer contains
+  only the Settings link; identity, environment context, and sign-out live in the top bar and
+  Settings.
 
 ---
 

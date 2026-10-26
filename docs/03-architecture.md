@@ -61,7 +61,8 @@ identity.
 
 The gateway's admin API expects:
 
-- `Authorization: Bearer <ADMIN_API_SECRET>` — a long-lived shared secret.
+- `Authorization: Bearer <BACKOFFICE_API_KEY>` — a long-lived 64-hex shared secret.
+  The BFF stores the same value in its `ADMIN_API_SECRET` environment variable.
 - `X-Admin-Actor: <operator>` — an audit identity the browser cannot be trusted to invent.
 - No browser CORS/session model.
 
@@ -109,6 +110,7 @@ packages or individual capability kinds.
 | Gateway/admin surface | Console domain | Subfeatures / routes |
 |---|---|---|
 | `capabilities`, `capability_providers`, `capability_audit` | `features/capabilities` | registry, configuration, routing, audit |
+| `app_clients`, `app_client_capabilities` | `features/app-clients` | client list, capability/model matrix |
 | `models` | `features/models` | catalog list, model editor |
 | `account`, `credit_ledger`, `usage_events`, credit grant | `features/users` | lookup, ledger, usage, grant |
 | cache invalidation, health, future jobs | `features/operations` | health, cache, jobs |
@@ -119,7 +121,7 @@ packages or individual capability kinds.
 
 Rules:
 
-1. **One domain per admin resource group or operator journey.** The target is six product
+1. **One domain per admin resource group or operator journey.** The target is seven product
    domains plus platform auth; do not create a domain per endpoint.
 2. **A capability kind is data, not a feature.** New kinds must render through the existing
    registry/form renderer. Creating `features/chat`, `features/tts`, or
@@ -133,13 +135,12 @@ Rules:
    the server must not mix `ADMIN_API_SECRET` and `INTERNAL_API_SECRET`.
 6. **Overview is composition-only.** It may consume public summary hooks from capabilities and
    models; it must not define duplicate query keys or a second source of truth.
-7. **Auth is platform infrastructure, not a product domain.** The current
-   `features/auth` folder is acceptable while it is small; move it to `platform/auth` when
-   the BFF and Access validation land.
+7. **Auth is platform infrastructure, not a product domain.** Access identity, the typed
+   API client, and the Query client live under `platform/`, not `features/`.
 
 A useful scale test: adding a new capability kind or provider should require **zero new
-top-level domains**. Adding a global audit feed, user directory, or aggregate stats endpoint
-would justify promoting a subfeature to a domain.
+top-level domains**. A global audit feed or aggregate stats endpoint would justify promoting a
+subfeature to a domain; the user directory stays inside `features/users`.
 
 ## 4. Repository layout (target)
 
@@ -236,12 +237,14 @@ would justify promoting a subfeature to a domain.
 └─ package.json
 ~~~
 
-**Current vs target:** the current code is a subset of this tree. `features/dashboard` still
-exists and should become `features/overview`; `features/auth` still holds the Access code;
-`features/capabilities` has not yet split into `registry/routing/audit` subfolders; and
-`shared/`, `server/`, and `platform/` are target layers. Do not perform the whole
-restructure before the BFF exists; apply the renames and subfolders as the relevant features
-land.
+**Current implementation (2026-10-23):** `features/dashboard` has been removed in favor
+of `features/overview`; auth moved to `platform/auth`; `platform/api`,
+`platform/query`, `shared/admin-api`, and `server/` are implemented. The capabilities
+domain has separate api/query/mutation modules and routing/audit pages; its remaining
+components are still colocated under `components/` rather than the target
+`registry/routing/audit` subfolders. Models, users, operations, and settings are wired to the
+BFF. The console is live-only against the Postgres-backed gateway admin API; the mock store
+has been removed and missing routes are shown as unavailable, never synthesized.
 
 
 
@@ -634,8 +637,8 @@ Adding an operator workflow is a repeatable change:
 
 A new domain is justified only when the backend exposes a **new global resource** with its own
 route, navigation entry, and ownership. An endpoint or a capability kind is not enough. If the
-backend route does not exist, the UI stays mock-only and is marked blocked; it does not invent
-a client-side endpoint.
+backend route does not exist, the UI is marked blocked; it does not invent a client-side
+endpoint or fall back to mock data.
 
 ### 12.1 Domain vs subfeature
 
@@ -647,7 +650,7 @@ a client-side endpoint.
 | Ledger/usage/grant addition | `features/users` subfeature. |
 | Cache invalidation, health, ops job | `features/operations`; jobs use a separate BFF secret. |
 | Global audit feed | Promote `capabilities/audit` to `features/audit` if the backend adds a global route. |
-| User directory/search | Upgrade `features/users` from lookup to directory; keep the same domain. |
+| User directory/search | Kept in `features/users`: directory + ID/email lookup. Gateway data/API pending; no new domain. |
 | Aggregate stats | Add a stats query to `features/overview` only when a real endpoint exists. |
 
 ### 12.2 What to change now
@@ -686,10 +689,10 @@ a truly global backend resource may add one.**
 
 ## 13. Testing seams
 
-- **MSW** intercepts browser/BFF HTTP for unit and component tests.
-- **Hono `app.request`** tests the BFF without a network.
-- **Playwright** runs the real BFF in mock mode or against staging.
-- **Shared schemas** are the contract test surface: every fixture and real response is parsed.
+- **Fetch-level fake gateway** is used only by BFF contract tests; no runtime mock exists.
+- **Hono `app.request`** tests the BFF without a browser.
+- **Playwright** (pending) runs the real BFF and gateway.
+- **Shared schemas** are the contract test surface: every real response is parsed.
 - **Domain public API** is the unit boundary; internal components can still be tested
   directly.
 

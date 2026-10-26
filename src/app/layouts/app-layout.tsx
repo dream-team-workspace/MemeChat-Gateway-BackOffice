@@ -3,7 +3,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { useSession } from "@/features/auth/auth-store";
+import { useSession } from "@/platform/auth/auth-store";
 
 export function AppLayout() {
   const session = useSession();

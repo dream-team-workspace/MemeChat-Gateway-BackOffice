@@ -21,11 +21,15 @@ audit row without exposing sensitive content.
 3. Logs never contain bodies, cookies, secrets, raw UIDs, or tokens.
 4. Every mutation emits an audit log line with actor hash, resource, action, outcome, request ID.
 5. Gateway `capability_audit` is surfaced in the UI for capability/provider changes.
+6. App-client audits (FR-019) surface every operator mutation with actor, timestamp, and safe
+   before/after snapshots; client user activity is metadata-only.
 6. Health endpoint reports BFF + gateway liveness/readiness without leaking config.
 7. Error responses include a safe code/message/request ID.
 8. Optional error reporting (Phase 4) scrubs PII/secrets and is sampled.
-9. Metrics (when added) use route templates, not raw URLs; no UID labels.
-10. Logs are retained 30 days; error reports 30 days; audit retention is gateway-owned.
+9. Metrics (when added) use route templates, not raw URLs; no UID or email labels.
+10. Logs are retained 30 days; error reports 30 days. Capability/app-client audit, email, and
+    user-activity retention are gateway-owned and documented in
+    [15-gateway-requests.md](../15-gateway-requests.md).
 11. Alerts (phase 5) for login failure spikes, 5xx rate, grant failures, and admin 401 spikes.
 
 ## Acceptance criteria

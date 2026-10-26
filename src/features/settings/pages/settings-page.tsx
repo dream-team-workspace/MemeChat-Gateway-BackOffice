@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Building2, Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -5,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { signOut, useSession } from "@/features/auth/auth-store";
+import { signOut, useSession } from "@/platform/auth/auth-store";
+import { systemApi, systemKeys } from "@/platform/api/system";
 import { cn } from "@/lib/utils";
 import { useTheme, type Theme } from "@/lib/theme";
 
@@ -37,6 +39,7 @@ const themeOptions: Array<{
 
 export function SettingsPage() {
   const session = useSession();
+  const meta = useQuery({ queryKey: systemKeys.meta, queryFn: systemApi.meta });
   const { theme, setTheme } = useTheme();
 
   if (!session) return null;
@@ -158,17 +161,17 @@ export function SettingsPage() {
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Target</span>
                 <Badge variant="outline" className="gap-1.5">
-                  <span className="size-1.5 rounded-full bg-warning" />
-                  Staging
+                  <span className={cn("size-1.5 rounded-full", meta.data?.environment === "production" ? "bg-success" : meta.data?.environment === "staging" ? "bg-warning" : "bg-info")} />
+                  {meta.data?.environment ?? "development"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Gateway</span>
-                <span className="truncate font-mono text-[11px]">api.dev.memechat.app</span>
+                <span className="truncate font-mono text-[11px]">Live gateway admin</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Console</span>
-                <span className="font-mono text-[11px]">v0.1.0</span>
+                <span className="font-mono text-[11px]">{meta.data?.version ?? "v0.1.0"}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Auth</span>
@@ -182,17 +185,19 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>About this template</CardTitle>
-              <CardDescription>Layout preview, not production wiring</CardDescription>
+              <CardTitle>About this console</CardTitle>
+              <CardDescription>Live gateway integration</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-[11px] leading-5 text-muted-foreground">
               <p>
-                Cloudflare Access authenticates operators before the console
-                loads. Page data is still dummy and no gateway request is made.
+                Every registry, client, provider, and user view is loaded from the
+                gateway&apos;s <span className="font-mono">/internal/admin</span> API
+                through the BFF. There is no mock data path.
               </p>
               <p>
-                In production, the BFF owns the admin secret and the actor
-                header. The browser never calls the gateway directly.
+                Cloudflare Access authenticates operators before the console loads. In
+                production, the BFF owns the admin secret and the actor header; the browser
+                never calls the gateway directly.
               </p>
               <div className="flex items-center gap-2 text-foreground">
                 <Building2 className="size-3.5" />

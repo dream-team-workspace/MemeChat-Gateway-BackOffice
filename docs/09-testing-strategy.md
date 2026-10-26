@@ -19,10 +19,10 @@
 | Layer | Tool | Scope | Speed | Runs |
 |---|---|---|---|---|
 | Unit | Vitest | pure functions, schemas, formatters, guards | ms | every change |
-| Component | Vitest + Testing Library + MSW | feature components, forms, tables, dialogs | fast | every change |
+| Component | Vitest + Testing Library | feature components, forms, tables, dialogs | fast | every change |
 | Contract | Vitest + Zod + fixtures | every admin payload/error parses and maps | ms | every change |
-| BFF integration | Vitest + Hono `app.request` + MSW/node | auth, CSRF, allowlist, headers, mapping, errors | fast | every change |
-| E2E | Playwright | real browser, real BFF (mock or staging), critical flows | slower | every PR + deploy |
+| BFF integration | Vitest + Hono `app.request` + fetch stub | auth, CSRF, allowlist, headers, mapping, errors | fast | every change |
+| E2E | Playwright | real browser, real BFF + gateway, critical flows | slower | every PR + deploy |
 | Visual | Playwright screenshots | key screens light/dark | slower | PR for UI + nightly |
 | Accessibility | axe-core / @axe-core/playwright | core routes and dialogs | fast | every PR |
 | Performance | Lighthouse CI | Overview/Capabilities budgets | slower | nightly/release |
@@ -76,8 +76,9 @@ Rules:
 
 Every fixture and real response must parse with the shared Zod schema.
 
-- Fixtures for: capability list/detail, providers, models, audit, ledger states (all seven),
-  usage statuses, grant success/error, error envelope.
+- Fixtures for: capability list/detail, providers (including persisted `lastCheck`), models,
+  audit, app clients (including `clientKeySha1`), app-client audit/activity, signed-in user
+  directory, ledger states (all seven), usage statuses, grant success/error, error envelope.
 - Golden files for upstream snake_case → canonical camelCase.
 - Negative fixtures: missing fields, wrong types, unknown enum values (should fail or map to
   `unknown` deliberately).
@@ -87,7 +88,7 @@ Every fixture and real response must parse with the shared Zod schema.
 
 ## 6. BFF integration tests
 
-Use Hono `app.request`; no real network. Mock upstream with MSW/node or a fetch stub.
+Use Hono `app.request`; no real network. Stub `fetch` with a test-only upstream gateway.
 
 Cases:
 
@@ -98,6 +99,8 @@ Cases:
 - Unknown path/method → 404/405 without upstream call.
 - Path param injection (`../`, encoded slash, huge input) → 400.
 - Upstream 401/403/5xx mapped safely; no secret in body.
+- A plain-text 404 from an unimplemented gateway route keeps status 404 so the console can show
+  a pending state instead of a contract error.
 - `X-Admin-Actor` is overwritten from session, never from the browser.
 - Request ID is propagated/generated and returned.
 - GET retry policy; mutation no-retry.
@@ -109,7 +112,8 @@ Cases:
 
 ## 7. E2E scenarios
 
-Run against BFF mock mode on every PR; run against staging on deploy.
+Contract tests use a fetch-level fake gateway on every PR; E2E runs against the real local
+gateway and staging on deploy. There is no runtime mock mode.
 
 | # | Scenario | Assertions |
 |---|---|---|
@@ -138,7 +142,7 @@ Rules:
 
 - Use accessible selectors.
 - No arbitrary sleeps; wait for network/UI state.
-- Each test creates its own mock state; reset endpoint between tests.
+- Each contract test owns its fetch fixture; E2E uses an isolated seeded gateway.
 - Capture trace/screenshot/video on failure.
 - Tag tests (@`smoke`, @`critical`) for selective runs.
 
@@ -181,13 +185,13 @@ block a release on a >20% regression without justification.
 - Every new endpoint adds a contract + BFF test.
 - Every new destructive action adds an E2E test.
 
-## 12. Test data and mocks
+## 12. Test data and doubles
 
 - Fixtures in `tests/fixtures` are deterministic and reused across unit, BFF, and E2E.
 - UIDs are fake (`test_uid_...`), never real customer IDs.
 - No production data in tests or screenshots.
 - MSW handlers implement the canonical contract, not the upstream shape.
-- Mock state supports reset and error injection via a dev-only endpoint or query param.
+- The fetch-level test double supports per-test responses and error injection; no runtime store exists.
 - Fixtures include disabled/empty/error/edge cases, not only happy paths.
 
 ## 13. CI gates
@@ -198,7 +202,7 @@ Required for merge:
 2. `npm run typecheck` (web + server + shared)
 3. `npm run test -- --run` (unit/component/contract/BFF)
 4. `npm run build` (web + server)
-5. `npm run test:e2e -- --project=chromium` (mock mode)
+5. `npm run test:e2e -- --project=chromium` (real gateway)
 6. Secret scan + dependency audit
 
 Nightly/release:
@@ -214,15 +218,15 @@ Nightly/release:
 - A flaky test is a bug; quarantine with an owner and a deadline (≤ 5 business days).
 - No retries to hide flakiness in PR CI; retries allowed only in nightly with a report.
 - Prefer deterministic waits over timeouts.
-- Mock time where relevant; do not depend on wall-clock boundaries.
+- Control time where relevant; do not depend on wall-clock boundaries.
 - Fix or delete a test that cannot be made deterministic; do not normalize failure.
 
 ## 15. Environments
 
 | Environment | Data | Auth | Purpose |
 |---|---|---|---|
-| Local | MSW/mock | Dev identity (`VITE_DEV_AUTH_EMAIL`) | Fast iteration |
-| CI | Mock | Dev identity / mocked `get-identity` | PR gates |
+| Local | Real gateway + Postgres | Dev identity (`VITE_DEV_AUTH_EMAIL`) | Fast iteration |
+| CI | Fetch-level fake gateway (contract tests only) | Dev identity | PR gates |
 | Staging | Real gateway staging DB | Staging Access app | Integration + smoke |
 | Production | Real | Production Access app | Smoke only (read-only unless approved) |
 
@@ -250,7 +254,7 @@ approved test plan. Prefer read-only smoke + synthetic staging mutations.
 - [ ] Cache invalidate.
 - [ ] Light/dark and 360/768/1440.
 - [ ] Keyboard-only critical paths.
-- [ ] Error states (stop gateway or mock 5xx).
+- [ ] Error states (stop gateway or upstream 5xx).
 - [ ] No console errors; no secret in network.
 - [ ] Rollback rehearsal.
 
@@ -258,7 +262,7 @@ approved test plan. Prefer read-only smoke + synthetic staging mutations.
 
 | Phase | Test exit |
 |---|---|
-| S1 scaffold | Lint/typecheck/build; login + shell E2E on mocks |
+| S1 scaffold | Lint/typecheck/build; login + shell E2E against the gateway |
 | S2 registry | Component + BFF + E2E for capabilities/routing/kill switch/models |
 | S3 support | E2E for lookup/ledger/usage/grant; money-path tests |
 | S4 integration | Contract tests against staging; full E2E; a11y/perf pass |

@@ -18,8 +18,9 @@ context, route guards, and accessible error/not-found pages.
 
 In scope:
 
-- Sidebar groups (Operate/Support/System), top bar, breadcrumbs, user menu.
-- Environment badge (staging/production) from the BFF.
+- Sidebar groups (Operate/Support/System), top bar, breadcrumbs.
+- Environment badge in the top bar (staging/production) from the BFF.
+- Sign-out and operator identity in Settings; the sidebar footer has no session block.
 - Route guards, lazy routes, 403/404/route error.
 - Document titles and responsive behavior.
 - Optional command palette / shortcuts (phase 1 shell, capabilities later).
@@ -40,11 +41,12 @@ Out of scope:
 ## Behavior
 
 1. `AppShell` renders skip link, sidebar, top bar, main, toaster.
-2. Sidebar groups: Operate (Overview, Capabilities, Models), Support (Users), System
-   (Operations, Settings).
+2. Sidebar groups: Operate (Overview, Capabilities, App clients, Models, Providers),
+   Support (Users), System (Operations); Settings sits in the sidebar footer.
 3. Environment badge comes from `/api/auth/me` (or health/meta), never a build-only flag.
 4. Top bar shows breadcrumbs, command palette trigger, refresh where relevant.
-5. User menu: email, environment, theme, docs, sign out.
+5. The top bar carries the environment badge and theme toggle. The sidebar footer links to
+   Settings only; identity and sign-out live in Settings (no operator block in the sidebar).
 6. `beforeLoad` checks session; unauthenticated → login with `returnTo`.
 7. 403/404/route error are real routes with home/back actions.
 8. Each route sets `document.title` and a breadcrumb.
@@ -75,7 +77,8 @@ Out of scope:
 ## UX notes
 
 - Brand: text wordmark "MemeChat BackOffice"; no invented logo.
-- Sidebar footer: environment badge + user menu; do not hide it on scroll.
+- Sidebar footer: Settings link only, always visible; do not add an environment panel or
+  operator block there. The top bar owns environment context.
 - Top bar is 56px; content starts below; no double headers.
 - Use icons + labels at desktop; icons with tooltips when collapsed.
 - Command palette (Cmd/Ctrl+K) searches routes and loaded capabilities; show a "No results"
@@ -100,7 +103,7 @@ Out of scope:
 
 ## Test notes
 
-- Component: nav, active states, user menu, 403/404.
+- Component: nav, active states, top-bar environment badge, 403/404.
 - E2E E1/E17, mobile sidebar, keyboard.
 - Accessibility: skip link, focus, aria-current.
 

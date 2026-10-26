@@ -9,7 +9,7 @@ import { BrandMark } from "@/components/common/brand-mark";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { signIn } from "@/features/auth/auth-store";
+import { signIn } from "@/platform/auth/auth-store";
 
 export function LoginPage() {
   const isDevelopment = import.meta.env.DEV;

@@ -1,6 +1,6 @@
 # ADR-0007 — Mock-first contract until the admin API lands
 
-- **Status:** Proposed
+- **Status:** Superseded 2026-10-24 — the gateway admin API is live and the console is live-only
 - **Date:** 2026-10-21
 - **Deciders:** Frontend/backend
 

@@ -34,8 +34,8 @@
 | **CSRF** | Cross-Site Request Forgery; mitigated by Origin + double-submit token |
 | **CSP** | Content Security Policy; restricts scripts/styles/connections |
 | **Allowlist** | Explicitly permitted operators (email/domain/org) or BFF routes |
-| **MSW** | Mock Service Worker; HTTP mocking for tests and local dev |
-| **Mock mode** | Deterministic in-memory admin API used before the gateway routes exist |
+| **Test double** | Fetch-level fake gateway used only by contract tests; never used by runtime |
+| **Mock mode** | Historical: removed 2026-10-24; the console is live-only |
 | **Contract** | The canonical camelCase payloads, errors, and pagination the BFF exposes |
 | **ADR** | Architecture Decision Record |
 | **FR / NFR** | Functional / non-functional requirement |

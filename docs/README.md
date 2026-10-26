@@ -1,8 +1,8 @@
 # Documentation index
 
-This repository is documentation-first. The planning corpus is complete; the Phase 1 UI
-template is implemented on `feature/template` with Cloudflare Access login and dummy data. The
-BFF, live admin API, tests, and deployment workflows are still pending.
+This repository is documentation-first. The planning corpus is complete; the Phase 1
+operator console, BFF, and live gateway admin integration are implemented on
+`feature/implementation`. Playwright/E2E coverage and production deployment are still pending.
 
 ## Start here
 
@@ -26,6 +26,8 @@ BFF, live admin API, tests, and deployment workflows are still pending.
 
 - [Tech stack](04-tech-stack.md)
 - [API integration](06-api-integration.md)
+- [Gateway requests for the BackOffice](15-gateway-requests.md) — pending admin endpoints and
+  data model changes, with exact payloads and rollout order.
 - [Engineering standards](08-engineering-standards.md)
 - [Testing strategy](09-testing-strategy.md)
 - [Architecture decision records](adr/)

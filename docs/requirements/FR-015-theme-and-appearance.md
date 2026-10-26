@@ -43,7 +43,7 @@ Out of scope:
 1. On boot, an external theme-init script reads localStorage/system and sets `.dark` on
    `<html>` before paint.
 2. Default mode: `system`; explicit `light`/`dark` override.
-3. The user menu offers Light / Dark / System with the current selection marked.
+3. The top bar offers Light / Dark / System with the current selection marked; Settings repeats the controls.
 4. Changing mode updates `.dark` immediately and persists.
 5. System mode listens to `prefers-color-scheme` changes.
 6. Components use semantic tokens only; no raw colors.
@@ -69,7 +69,8 @@ static file to satisfy `script-src 'self'`.
 
 ## UX notes
 
-- Theme control lives in the user menu or Settings, not the primary nav.
+- Theme control lives in the top bar and Settings, not the primary navigation. The sidebar
+  footer no longer contains an operator or environment block.
 - Use a segmented control or radio group with labels, not an icon-only toggle.
 - Dark background is pure black; cards are elevated by surface + border, not shadows.
 - Do not auto-switch based on time of day.

@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       "dist",
+      "dist-server",
       "coverage",
       "playwright-report",
       "test-results",
@@ -32,6 +33,10 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "no-empty": ["error", { allowEmptyCatch: true }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "react-refresh/only-export-components": [
         "warn",
         {
