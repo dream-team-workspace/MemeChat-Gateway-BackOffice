@@ -304,9 +304,8 @@ Use environment-scoped secrets, not repository-wide, for production.
 | `NODE_ENV` | yes | `production` |
 | `PORT` | yes | `8787` |
 | `APP_ORIGIN` | yes | Exact public origin |
-| `ADMIN_API_BASE_URL` | yes | Gateway origin, no trailing slash |
-| `ADMIN_API_SECRET` | yes | Secret; required at startup in every environment |
-| `ADMIN_API_BASE_URL` | yes | Gateway base URL, e.g. `http://127.0.0.1:8080` |
+| `ADMIN_API_BASE_URL` | yes | Main gateway origin, `https://gateway.dream-team.works`, no trailing slash |
+| `ADMIN_API_SECRET` | yes | Production `BACKOFFICE_API_KEY`; required at startup in every environment |
 | `CF_ACCESS_TEAM_DOMAIN` | BFF | `rough-water-d6a6.cloudflareaccess.com` |
 | `CF_ACCESS_AUD` | BFF | Access application AUD tag (not secret) |
 | `VITE_DEV_AUTH_EMAIL` | dev only | Local identity for `npm run dev`; ignored in production builds |
@@ -382,7 +381,7 @@ Target: < 5 minutes. No rebuild; pull the previous immutable image.
 - [ ] Add the five deployment secrets and push the workflow to GitHub.
 - [x] Provision the server, Node 24, systemd service, `deploy` user, release helper, directories.
 - [ ] Create the Cloudflare Access application and allowlist policy.
-- [ ] Set the gateway `ADMIN_API_SECRET` in `/etc/memechat-backoffice.env`.
+- [x] Set the production gateway `BACKOFFICE_API_KEY` in `/etc/memechat-backoffice.env` as `ADMIN_API_SECRET`.
 - [x] Add the runtime env file (0640).
 - [x] Add `deploy/` scripts and systemd units.
 - [ ] Run a staging deploy and a rollback drill once staging exists.
