@@ -137,9 +137,9 @@ Cloudflare Access (rough-water-d6a6.cloudflareaccess.com)
 Cloudflare Tunnel
   │  public hostname: console.dream-team.works
   ▼
-Static console origin (localhost, not publicly reachable)
+BFF origin (127.0.0.1:8787)
   ├─ dist/index.html + assets
-  └─ /api/* only after the BFF lands
+  └─ /api/* live-only gateway proxy
 
 The browser also calls, on the same hostname:
   GET /cdn-cgi/access/get-identity   → verified email/name/idp
