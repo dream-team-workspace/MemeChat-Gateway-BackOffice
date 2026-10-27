@@ -69,7 +69,7 @@ APP_ENV=production
 HOST=127.0.0.1
 PORT=8787
 APP_ORIGIN=https://console.dream-team.works
-ADMIN_API_BASE_URL=http://127.0.0.1:18081
+ADMIN_API_BASE_URL=https://gateway.dream-team.works
 # Must equal the gateway's 64-hex BACKOFFICE_API_KEY.
 ADMIN_API_SECRET=CHANGE_ME
 CF_ACCESS_TEAM_DOMAIN=rough-water-d6a6.cloudflareaccess.com

@@ -13,14 +13,13 @@
 | Bind | `127.0.0.1:8787` |
 | Release root | `/opt/memechat-backoffice` |
 | Env file | `/etc/memechat-backoffice.env` |
-| Gateway origin | `memechat-gateway.service` on `127.0.0.1:18081` |
+| Gateway origin | `https://gateway.dream-team.works` |
+| Console | `https://console.dream-team.works` behind Cloudflare Access |
 
-The initial release is installed and healthy on loopback. It is **not publicly exposed yet**:
-`console.dream-team.works` has no DNS record, no Cloudflare Access application, and the
-running service still uses the safe loopback development identity.
+The master release is deployed with systemd and is publicly reachable through Cloudflare
+Access. The BFF runs in production mode and calls the main gateway through its public origin.
 
-The workflow is present in the working tree but **not active on GitHub** until it is committed,
-pushed, and the repository secrets below are added.
+The workflow is active on `master`; the deployment secrets below are already configured.
 
 ## Topology
 
@@ -39,7 +38,7 @@ cloudflared
   -> http://127.0.0.1:8787
 
 BFF
-  -> http://127.0.0.1:18081/internal/admin/*
+  -> https://gateway.dream-team.works/internal/admin/*
 ~~~
 
 Nginx is not used for this service.
@@ -110,15 +109,15 @@ APP_ENV=production
 HOST=127.0.0.1
 PORT=8787
 APP_ORIGIN=https://console.dream-team.works
-ADMIN_API_BASE_URL=http://127.0.0.1:18081
-ADMIN_API_SECRET=<gateway admin secret>
+ADMIN_API_BASE_URL=https://gateway.dream-team.works
+ADMIN_API_SECRET=<production gateway BACKOFFICE_API_KEY>
 CF_ACCESS_TEAM_DOMAIN=rough-water-d6a6.cloudflareaccess.com
 CF_ACCESS_AUD=<Access application AUD>
 ~~~
 
-The current server install intentionally uses `NODE_ENV=development` so it can be tested
-on loopback without Access. **Do not expose it through the tunnel until it is switched to
-production and the Access AUD is configured.**
+The server is in production mode. The gateway key is the 64-hex value in
+`/etc/memechat-gateway/backoffice.env`; the BFF must use the same value as
+`ADMIN_API_SECRET`.
 
 ## Manual deployment / rollback
 
@@ -135,62 +134,47 @@ sudo journalctl -u memechat-backoffice -n 100 --no-pager
 The helper keeps the previous release and automatically rolls back if the service does not
 answer `/api/health` within 30 seconds.
 
-## Gateway sidecar
+## Main gateway
 
-The console is live-only. The current server also runs the gateway admin build on loopback:
+The console is live-only and connects to the main gateway at
+`https://gateway.dream-team.works`:
 
 ~~~bash
+curl -fsS https://gateway.dream-team.works/healthz
+curl -fsS https://gateway.dream-team.works/readyz
 sudo systemctl status memechat-gateway
-curl http://127.0.0.1:18081/readyz
 sudo journalctl -u memechat-gateway -n 100 --no-pager
 ~~~
 
-This gateway service was installed manually from the current gateway working tree. It is not
-part of the backoffice master workflow. Long term, give the gateway its own CI/deployment.
+The gateway is deployed separately by its own master workflow. The BFF uses the production
+`BACKOFFICE_API_KEY` from `/etc/memechat-gateway/backoffice.env`; do not use the local
+development key.
 
 ## Cloudflare Access / public hostname
 
-The existing named tunnel has a usable `cert.pem` and credentials on the server.
+The console is configured and live:
 
-1. Create the Access application in Zero Trust:
-   - Type: Self-hosted
-   - Name: `MemeChat BackOffice`
-   - Hostname: `console.dream-team.works`
-   - Policy: allow the same operator group/email domain as the SSH application.
-2. Copy the application **AUD** into `/etc/memechat-backoffice.env`.
-3. Add the tunnel ingress. For the named freesky tunnel, edit
-   `/etc/cloudflared/freesky.yml` and add, before the catch-all:
-
-~~~yaml
-  - hostname: console.dream-team.works
-    service: http://127.0.0.1:8787
+~~~text
+https://console.dream-team.works
+  -> Cloudflare Access
+  -> http://127.0.0.1:8787
 ~~~
 
-4. Create the DNS route:
+The Access application is `MemeChat BackOffice`; its AUD is stored in
+`/etc/memechat-backoffice.env` as `CF_ACCESS_AUD`. The BFF runs with
+`NODE_ENV=production` and `APP_ENV=production`.
 
-~~~bash
-sudo cloudflared tunnel route dns <tunnel-name-or-id> console.dream-team.works
-sudo systemctl restart cloudflared-freesky
-~~~
+Verify from a private browser window:
 
-Alternatively add the public hostname to the token-managed `cloudflared.service` tunnel in
-the Zero Trust dashboard.
-
-5. Switch the BFF to production and restart:
-
-~~~bash
-sudo sed -i 's/^NODE_ENV=.*/NODE_ENV=production/; s/^APP_ENV=.*/APP_ENV=production/' \
-  /etc/memechat-backoffice.env
-sudo systemctl restart memechat-backoffice
-~~~
-
-6. Verify:
-   - `https://console.dream-team.works` redirects to Access login
-   - after login, Overview shows real capabilities/models
-   - `/api/health` is healthy from loopback
-   - browser console has no errors
+1. `https://console.dream-team.works` redirects to the Access login.
+2. After login, `/cdn-cgi/access/get-identity` returns the operator email.
+3. Overview, app clients, users, providers, and operations load live data.
+4. `/api/admin/*` without an Access session returns 401/302, never data.
 
 ## Important security note
 
-Until step 5 is complete, the BFF is in development auth mode and must remain bound to
-`127.0.0.1`. Do not add the Cloudflare hostname before Access is configured.
+The main gateway is publicly reachable at `https://gateway.dream-team.works`.
+`/internal/admin/*` is protected by the 64-hex `BACKOFFICE_API_KEY`; the app API
+`/v1/*` is protected by Firebase plus the app-client key. Do not expose the admin key to the
+browser. Consider putting `/internal/admin/*` behind a Cloudflare Access service-token policy
+or WAF rule if it does not need to be reachable from outside the BFF host.
