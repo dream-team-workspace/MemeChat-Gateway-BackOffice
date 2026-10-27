@@ -29,7 +29,8 @@ routing, kill switches, model catalog, user ledger/usage, credit grants, and sys
   may consume, and bind each enabled capability to a model from that capability's routed
   catalog. Every client always shows the full capability matrix. Each client gets a one-time
   40-character identity key (store only its SHA-1 digest); the app sends it as
-  `X-App-Client-Key`, and rotation immediately invalidates the old key.
+  `X-App-Client-Key`, and rotation immediately invalidates the old key. Clients can require
+  the app-asserted `X-Firebase-Uid` header; optional clients may omit it.
 - **BFF** — Hono on Node, Cloudflare Access JWT validation in production, live gateway proxy
   with admin-secret injection and canonical mapping, request IDs, error envelope, origin
   checks, security headers, static serving, and graceful shutdown. Every request is forwarded

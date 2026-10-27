@@ -100,6 +100,7 @@ const appClient = {
   platform: "android",
   description: "Primary Android client",
   enabled: true,
+  requireFirebaseUid: false,
   capabilities: [
     {
       capabilityId: "chat.standard",
@@ -448,6 +449,7 @@ describe("live-only BFF admin API", () => {
         platform: "android",
         description: "Primary Android client",
         enabled: true,
+        requireFirebaseUid: true,
         capabilities: [
           {
             capabilityId: "chat.standard",
@@ -459,6 +461,7 @@ describe("live-only BFF admin API", () => {
     });
     expect(created.status).toBe(201);
     expect(calls.at(-1)?.body).toContain('"capability_id"');
+    expect(calls.at(-1)?.body).toContain('"require_firebase_uid":true');
     expect(calls.at(-1)?.headers.get("X-Admin-Actor")).toBe("operator@test.local");
 
     const rotated = await jsonBody<{ clientKey?: string }>(

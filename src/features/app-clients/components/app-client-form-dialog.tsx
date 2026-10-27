@@ -24,6 +24,7 @@ type Draft = {
   platform: AppPlatform;
   description: string;
   enabled: boolean;
+  requireFirebaseUid: boolean;
 };
 
 const platforms: { value: AppPlatform; label: string }[] = [
@@ -41,6 +42,7 @@ function emptyDraft(): Draft {
     platform: "android",
     description: "",
     enabled: true,
+    requireFirebaseUid: false,
   };
 }
 
@@ -51,6 +53,7 @@ function fromClient(client: AppClient): Draft {
     platform: client.platform,
     description: client.description,
     enabled: client.enabled,
+    requireFirebaseUid: client.requireFirebaseUid,
   };
 }
 
@@ -94,6 +97,7 @@ export function AppClientFormDialog({
       platform: draft.platform,
       description: draft.description,
       enabled: draft.enabled,
+      requireFirebaseUid: draft.requireFirebaseUid,
       capabilities: (client?.capabilities ?? []).map((capability) => ({
         capabilityId: capability.capabilityId,
         modelId: capability.modelId,
@@ -204,6 +208,20 @@ export function AppClientFormDialog({
             checked={draft.enabled}
             onCheckedChange={(enabled) => patch({ enabled })}
             aria-label="App client enabled"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 sm:col-span-2">
+          <div>
+            <p className="text-xs font-semibold">Require Firebase UID</p>
+            <p className="text-[11px] text-muted-foreground">
+              When enabled, requests must include the app's asserted{" "}
+              <span className="font-mono">X-Firebase-Uid</span> header.
+            </p>
+          </div>
+          <Switch
+            checked={draft.requireFirebaseUid}
+            onCheckedChange={(requireFirebaseUid) => patch({ requireFirebaseUid })}
+            aria-label="Require Firebase UID"
           />
         </div>
       </div>
