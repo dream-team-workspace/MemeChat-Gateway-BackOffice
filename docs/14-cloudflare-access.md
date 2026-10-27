@@ -33,14 +33,15 @@ Configure Cloudflare Access on the **backoffice hostname** (for example
 |---|---|---|
 | Backoffice SPA / future BFF | **Yes**, browser login | Access SSO + policy |
 | Gateway `/v1/*` (mobile app API) | **No** | Firebase ID tokens |
-| Gateway `/internal/admin/*` | Not browser-facing | BFF-only, private network, `ADMIN_API_SECRET` |
+| Gateway `/internal/admin/*` | Not browser-facing | BFF-only, 64-hex `BACKOFFICE_API_KEY`; currently reachable on the public gateway origin |
 
 Putting browser Access in front of `/v1/*` would break the mobile app's Firebase
 authentication. The admin API must not be the browser's target; the future BFF
-holds the admin secret and calls the gateway privately. If the admin API ever
-needs a direct external entry point, protect it with a separate Access
-application and service token (machine-to-machine), not the operator browser
-session.
+holds the admin secret and calls the gateway at `https://gateway.dream-team.works`.
+The admin API is key-authenticated but currently external; protect
+`/internal/admin/*` with a separate Access service-token policy or WAF rule when
+it does not need to be reachable beyond the BFF host. Do not use the operator
+browser session for machine-to-machine admin calls.
 
 ## 2. Current Cloudflare context
 
@@ -136,9 +137,9 @@ Cloudflare Access (rough-water-d6a6.cloudflareaccess.com)
 Cloudflare Tunnel
   │  public hostname: console.dream-team.works
   ▼
-Static console origin (localhost, not publicly reachable)
+BFF origin (127.0.0.1:8787)
   ├─ dist/index.html + assets
-  └─ /api/* only after the BFF lands
+  └─ /api/* live-only gateway proxy
 
 The browser also calls, on the same hostname:
   GET /cdn-cgi/access/get-identity   → verified email/name/idp

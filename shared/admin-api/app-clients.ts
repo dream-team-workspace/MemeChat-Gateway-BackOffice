@@ -29,6 +29,7 @@ export const appClientSchema = z.object({
   platform: appPlatformSchema,
   description: z.string(),
   enabled: z.boolean(),
+  requireFirebaseUid: z.boolean().default(false),
   capabilities: z.array(appClientCapabilitySchema),
   keyRotatedAt: isoDateTimeSchema.nullable(),
   /**
@@ -66,6 +67,7 @@ export const appClientInputSchema = z.object({
   platform: appPlatformSchema,
   description: z.string().trim().max(500),
   enabled: z.boolean(),
+  requireFirebaseUid: z.boolean().default(false),
   capabilities: z.array(appClientCapabilityInputSchema),
 });
 

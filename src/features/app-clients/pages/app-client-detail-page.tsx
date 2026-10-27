@@ -192,6 +192,7 @@ function AppClientEditor({ client }: { client: AppClient }) {
         platform: client.platform,
         description: client.description,
         enabled: client.enabled,
+        requireFirebaseUid: client.requireFirebaseUid,
         capabilities: rows,
       },
       {
@@ -261,6 +262,9 @@ function AppClientEditor({ client }: { client: AppClient }) {
             <Badge variant="outline">{platformLabel(client.platform)}</Badge>
             <Badge variant={client.enabled ? "success" : "warning"}>
               {client.enabled ? "Enabled" : "Disabled"}
+            </Badge>
+            <Badge variant={client.requireFirebaseUid ? "info" : "outline"}>
+              {client.requireFirebaseUid ? "Firebase UID required" : "Firebase UID optional"}
             </Badge>
           </div>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">{client.slug}</p>

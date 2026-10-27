@@ -71,6 +71,9 @@ an app-owned login session.
 `{capabilityId, capabilityName, kind, modelId, enabled}`. A create/update body replaces the
 whole matrix; an enabled row must reference a model present in `capability_providers` for that
 capability. Unknown capabilities, duplicate rows, and unmodeled enabled rows return 422.
+`requireFirebaseUid` (gateway input `require_firebase_uid`) is part of the app-client
+create/update body. When true, `/v1` requires the app-asserted `X-Firebase-Uid` header;
+when false, the header is optional context.
 
 Create and rotate responses include a one-time `clientKey` (40 lowercase hex). List/get return
 only `keyRotatedAt`; the plaintext key is never recoverable. The app authenticates

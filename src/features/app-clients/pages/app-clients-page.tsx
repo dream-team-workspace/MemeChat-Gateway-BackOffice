@@ -180,6 +180,9 @@ function LinkCard({ client, onOpen }: { client: AppClient; onOpen: () => void })
             <Badge variant="outline">
               {mappedCount(client)} {mappedCount(client) === 1 ? "capability" : "capabilities"} enabled
             </Badge>
+            <Badge variant={client.requireFirebaseUid ? "info" : "outline"}>
+              {client.requireFirebaseUid ? "Firebase UID required" : "Firebase UID not required"}
+            </Badge>
           </div>
           <p className="line-clamp-2 min-h-8 text-xs leading-4 text-muted-foreground">
             {client.description || "No description"}

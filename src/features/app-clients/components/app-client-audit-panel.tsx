@@ -15,6 +15,22 @@ import {
 import { getErrorMessage, isGatewayFeatureMissing } from "@/platform/api";
 import { formatDateTime, formatJson, formatNumber } from "@/lib/format";
 
+function firebaseUidPolicyChange(entry: {
+  beforeState: Record<string, unknown> | null;
+  afterState: Record<string, unknown> | null;
+}) {
+  const before = entry.beforeState?.requireFirebaseUid;
+  const after = entry.afterState?.requireFirebaseUid;
+  if (typeof before !== "boolean" || typeof after !== "boolean" || before === after) {
+    return null;
+  }
+  return { before, after };
+}
+
+function policyLabel(value: boolean) {
+  return value ? "Required" : "Not required";
+}
+
 /** Operator actions recorded by the gateway against one app client. */
 export function AppClientAdminAudit({ clientId }: { clientId: string }) {
   const [cursor, setCursor] = useState<string | undefined>();
@@ -65,6 +81,14 @@ export function AppClientAdminAudit({ clientId }: { clientId: string }) {
                     </span>
                   </summary>
                   <div className="grid gap-3 border-t border-border bg-muted/30 px-5 py-4 lg:grid-cols-2">
+                    {firebaseUidPolicyChange(entry) ? (
+                      <div className="rounded-md border border-info/20 bg-info/5 px-3 py-2 text-xs lg:col-span-2">
+                        <span className="font-semibold">Firebase UID policy: </span>
+                        {policyLabel(firebaseUidPolicyChange(entry)!.before)}
+                        {" → "}
+                        {policyLabel(firebaseUidPolicyChange(entry)!.after)}
+                      </div>
+                    ) : null}
                     <div>
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Before

@@ -16,9 +16,9 @@
   tier, and it has no usage-event writer to attach `app_client_id`. See the status block in
   [docs/15-gateway-requests.md](docs/15-gateway-requests.md); the console shows honest empty or
   unknown values for those two gaps.
-- The first BackOffice release is deployed on the server loopback with systemd; public
-  `console.dream-team.works` exposure is pending Cloudflare Access/tunnel configuration.
-  CI deploys `master` to `/opt/memechat-backoffice`; see [deploy/README.md](deploy/README.md).
+- `console.dream-team.works` is live behind Cloudflare Access; the BFF runs production auth
+  and calls the main gateway at `https://gateway.dream-team.works`. CI deploys `master` to
+  `/opt/memechat-backoffice`; see [deploy/README.md](deploy/README.md).
 
 ## Sources of truth
 
@@ -61,6 +61,9 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
   models and their single capability mapping; do not hardcode or allow free-text model ids.
 - App clients always carry the full capability matrix. Enabled rows must bind a capability to
   a model routed for that capability; disabled rows remain present and are not grants.
+- `requireFirebaseUid` is per app client. When true, the gateway requires the app-asserted
+  `X-Firebase-Uid` header; when false it is optional request context only. Never treat the UID
+  as proof of identity by itself.
 - Browser data goes through the typed client and Query hooks; no `fetch` in components/pages.
 - Forms use RHF + Zod; mutations are pessimistic for registry and money paths.
 - Use semantic design tokens only; no raw colors in domain code.

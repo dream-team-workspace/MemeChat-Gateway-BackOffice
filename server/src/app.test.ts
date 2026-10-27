@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { appClientSchema } from "../../shared/admin-api/index.js";
+
 type AppLike = {
   request: (input: string, init?: RequestInit) => Response | Promise<Response>;
 };
@@ -100,6 +102,7 @@ const appClient = {
   platform: "android",
   description: "Primary Android client",
   enabled: true,
+  requireFirebaseUid: false,
   capabilities: [
     {
       capabilityId: "chat.standard",
@@ -120,8 +123,8 @@ const appClientAuditEntry = {
   appClientId: appClient.id,
   action: "capability_granted",
   changedBy: "operator@test.local",
-  beforeState: { enabled: false },
-  afterState: { enabled: true, modelId: "deepseek-v4.1-flash" },
+  beforeState: { enabled: false, requireFirebaseUid: false },
+  afterState: { enabled: true, requireFirebaseUid: true, modelId: "deepseek-v4.1-flash" },
   changedAt: "2026-10-25T09:00:00Z",
 };
 
@@ -238,7 +241,11 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return json({ items: [auditEntry], nextCursor: "older" });
   }
   if (url.pathname === "/internal/admin/app-clients") {
-    return json(method === "POST" ? appClient : { items: [appClient] });
+    return json(
+      method === "POST"
+        ? { ...appClient, requireFirebaseUid: true }
+        : { items: [appClient] },
+    );
   }
   if (url.pathname === "/internal/admin/app-clients/" + appClient.id) {
     if (method === "DELETE") return json({ deleted: true });
@@ -423,6 +430,17 @@ describe("live-only BFF admin API", () => {
     expect(calls.at(-1)?.method).toBe("POST");
   });
 
+  it("parses both Firebase UID policy values", () => {
+    const required = appClientSchema.parse({ ...appClient, requireFirebaseUid: true });
+    expect(required.requireFirebaseUid).toBe(true);
+    const optional = appClientSchema.parse({ ...appClient, requireFirebaseUid: false });
+    expect(optional.requireFirebaseUid).toBe(false);
+    expect(
+      appClientSchema.parse({ ...appClient, requireFirebaseUid: undefined })
+        .requireFirebaseUid,
+    ).toBe(false);
+  });
+
   it("lists, reads, creates, and deletes app clients", async () => {
     const list = await jsonBody<{ items: Array<{ id: string }> }>(
       await app.request("/api/admin/app-clients"),
@@ -448,6 +466,7 @@ describe("live-only BFF admin API", () => {
         platform: "android",
         description: "Primary Android client",
         enabled: true,
+        requireFirebaseUid: true,
         capabilities: [
           {
             capabilityId: "chat.standard",
@@ -458,7 +477,9 @@ describe("live-only BFF admin API", () => {
       }),
     });
     expect(created.status).toBe(201);
+    expect((await jsonBody<{ requireFirebaseUid: boolean }>(created)).requireFirebaseUid).toBe(true);
     expect(calls.at(-1)?.body).toContain('"capability_id"');
+    expect(calls.at(-1)?.body).toContain('"require_firebase_uid":true');
     expect(calls.at(-1)?.headers.get("X-Admin-Actor")).toBe("operator@test.local");
 
     const rotated = await jsonBody<{ clientKey?: string }>(
