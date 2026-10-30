@@ -13,7 +13,7 @@ import {
 import { adminFetch } from "../gateway/live.js";
 import { camelize, listItems, toApiBody } from "../gateway/mappers.js";
 import type { AppEnv } from "../types.js";
-import { jsonBody, normalizePage, readPageQuery } from "./helpers.js";
+import { jsonBody, normalizePage, readActivityQuery, readPageQuery } from "./helpers.js";
 
 const appClients = new Hono<AppEnv>();
 
@@ -76,13 +76,15 @@ appClients.get("/:id/audit", async (c) => {
 });
 
 appClients.get("/:id/activity", async (c) => {
-  const query = readPageQuery(c);
+  const query = readActivityQuery(c);
+  const params = new URLSearchParams({ limit: String(query.limit) });
+  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.date) params.set("date", query.date);
   const raw = await adminFetch(
     "/internal/admin/app-clients/" +
       encodeURIComponent(c.req.param("id")) +
-      "/activity?limit=" +
-      String(query.limit) +
-      (query.cursor ? "&cursor=" + encodeURIComponent(query.cursor) : ""),
+      "/activity?" +
+      params.toString(),
     c.get("actor"),
     { requestId: c.get("requestId") },
   );

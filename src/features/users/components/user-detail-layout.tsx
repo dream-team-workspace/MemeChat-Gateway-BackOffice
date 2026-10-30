@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { label: "Ledger", path: "ledger" },
   { label: "Usage", path: "usage" },
+  { label: "Activity", path: "activity" },
 ];
 
 export function UserDetailLayout() {
@@ -83,7 +84,7 @@ export function UserDetailLayout() {
           return (
             <Link
               key={tab.path}
-              to={href as "/users/$uid/ledger" | "/users/$uid/usage"}
+              to={href as "/users/$uid/ledger" | "/users/$uid/usage" | "/users/$uid/activity"}
               params={{ uid }}
               aria-current={active ? "page" : undefined}
               className={cn(

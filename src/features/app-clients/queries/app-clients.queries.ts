@@ -28,11 +28,12 @@ export function appClientAuditQueryOptions(
 export function appClientActivityQueryOptions(
   id: string,
   cursor?: string,
+  date?: string,
   enabled = true,
 ) {
   return queryOptions({
-    queryKey: appClientKeys.activity(id, cursor),
-    queryFn: () => appClientsApi.activity(id, cursor),
+    queryKey: appClientKeys.activity(id, cursor, date),
+    queryFn: () => appClientsApi.activity(id, cursor, date),
     enabled,
   });
 }

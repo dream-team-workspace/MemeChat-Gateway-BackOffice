@@ -134,9 +134,9 @@ const appClientActivityEntry = {
   uid: "uid_test",
   requestId: "9cde27e0-9a6b-4c9e-bdf4-7f2c1a4f3e21",
   capability: "chat.standard",
-  model: "deepseek-v4.1-flash",
+  model: null,
   status: "ok",
-  credits: 1,
+  credits: 0,
   latencyMs: 840,
   createdAt: "2026-10-25T09:05:00Z",
 };
@@ -278,6 +278,9 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   }
   if (url.pathname === "/internal/admin/users/uid_test/usage") {
     return json({ items: [usageEvent], nextCursor: null });
+  }
+  if (url.pathname === "/internal/admin/users/uid_test/activity") {
+    return json({ items: [appClientActivityEntry], nextCursor: "older" });
   }
   if (url.pathname === "/internal/admin/users/uid_test/credits/grant") {
     return json({
@@ -507,16 +510,49 @@ describe("live-only BFF admin API", () => {
     expect(calls.at(-1)?.headers.get("X-Admin-Actor")).toBe("operator@test.local");
 
     const activity = await jsonBody<{
-      items: Array<{ uid: string; capability: string; status: string }>;
+      items: Array<{
+        uid: string;
+        capability: string;
+        model: string | null;
+        status: string;
+        credits: number;
+      }>;
       nextCursor: string | null;
     }>(
-      await app.request("/api/admin/app-clients/" + appClient.id + "/activity?limit=10"),
+      await app.request(
+        "/api/admin/app-clients/" +
+          appClient.id +
+          "/activity?limit=10&date=30_10_2026",
+      ),
     );
     expect(activity.items).toHaveLength(1);
     expect(activity.items[0]?.uid).toBe("uid_test");
     expect(activity.items[0]?.capability).toBe("chat.standard");
+    expect(activity.items[0]?.model).toBeNull();
+    expect(activity.items[0]?.credits).toBe(0);
     expect(activity.items[0]?.status).toBe("ok");
     expect(activity.nextCursor).toBeNull();
+    expect(calls.at(-1)?.path).toContain("date=30_10_2026");
+  });
+
+  it("proxies user activity and rejects an invalid activity date", async () => {
+    const activity = await jsonBody<{
+      items: Array<{ appClientId: string; uid: string }>;
+      nextCursor: string | null;
+    }>(
+      await app.request("/api/admin/users/uid_test/activity?limit=10&date=30_10_2026"),
+    );
+    expect(activity.items).toHaveLength(1);
+    expect(activity.items[0]?.appClientId).toBe(appClient.id);
+    expect(activity.items[0]?.uid).toBe("uid_test");
+    expect(activity.nextCursor).toBe("older");
+    expect(calls.at(-1)?.path).toContain("/users/uid_test/activity?limit=10&date=30_10_2026");
+
+    const invalid = await app.request(
+      "/api/admin/users/uid_test/activity?date=31_02_2026",
+    );
+    expect(invalid.status).toBe(422);
+    expect(calls).toHaveLength(1);
   });
 
   it("preserves an unimplemented gateway route as a 404", async () => {

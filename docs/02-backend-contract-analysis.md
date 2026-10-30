@@ -200,23 +200,23 @@ error code/message but strips provider details and secrets.
 - Bulk operations.
 - Export endpoints.
 
-### BackOffice additions (implemented 2026-10-26)
+### BackOffice additions (implemented 2026-10-31)
 
-**Update 2026-10-26:** the gateway shipped `migrations/0004_backoffice_contract.sql` and the
-five BackOffice additions: the users directory read endpoint, `clientKeySha1`, app-client admin
-audit, the per-client activity read endpoint, and persisted provider health. Verified live
-through the BFF and console.
+**Update 2026-10-31:** the gateway shipped the five BackOffice additions: the users directory
+read endpoint, `clientKeySha1`, app-client admin audit, activity read endpoints, and persisted
+provider health. User activity is file-backed (daily JSONL per uid), with app-client-scoped and
+user-scoped reads and an optional `date=dd_mm_yyyy` filter. The console exposes an Activity tab
+on both the app-client detail and user detail pages.
 
-Two data-source gaps remain and are not console bugs:
+One data-source gap remains and is not a console bug:
 
 - `users.email` stays `null` because Firebase auth currently returns only uid, and `users.tier`
   stays `unknown` until the RevenueCat entitlement mapping is decided. The directory shows
   “Email not captured” / “Unknown” with a note.
-- `usage_events.app_client_id` is never written because there is no usage-event writer yet;
-  the activity screen correctly shows “No user activity recorded”.
 
-The remaining gateway work, privacy decisions, and acceptance checks are in
-[15-gateway-requests.md](15-gateway-requests.md).
+File-based activity does not include model or credit cost yet; the console omits the cost
+estimate rather than showing a misleading zero. The remaining gateway work, privacy decisions,
+and acceptance checks are in [15-gateway-requests.md](15-gateway-requests.md).
 
 ## 8. Security and privacy notes
 

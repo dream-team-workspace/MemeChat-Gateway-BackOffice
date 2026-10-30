@@ -16,6 +16,13 @@ export function userUsageQueryOptions(uid: string, cursor?: string) {
   });
 }
 
+export function userActivityQueryOptions(uid: string, cursor?: string, date?: string) {
+  return queryOptions({
+    queryKey: userKeys.activity(uid, cursor, date),
+    queryFn: () => usersApi.activity(uid, cursor, date),
+  });
+}
+
 export function userDirectoryQueryOptions(
   query: string,
   cursor?: string,

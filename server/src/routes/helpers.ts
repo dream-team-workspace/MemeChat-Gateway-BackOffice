@@ -24,6 +24,31 @@ export function readPageQuery(c: Context) {
   });
 }
 
+const activityDateSchema = z
+  .string()
+  .regex(/^\d{2}_\d{2}_\d{4}$/, "Activity date must use dd_mm_yyyy.")
+  .refine((value) => {
+    const [day, month, year] = value.split("_").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      year >= 2000 &&
+      year <= new Date().getUTCFullYear() &&
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }, "Activity date is not a current-era calendar date.");
+
+/** Activity pages add an optional day selector to the normal page query. */
+export function readActivityQuery(c: Context) {
+  const page = readPageQuery(c);
+  const raw = c.req.query("date")?.trim();
+  return {
+    ...page,
+    date: raw ? activityDateSchema.parse(raw) : undefined,
+  };
+}
+
 export const userSearchQuerySchema = z.object({
   query: z.string().trim().min(1).max(254).optional(),
 });

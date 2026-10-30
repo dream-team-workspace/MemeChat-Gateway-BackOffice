@@ -2,17 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress (SHA-1, audit, and activity read live; activity writer pending) |
+| Status | Implemented (gateway activity branch deployment pending) |
 | Priority | Must |
 | Phase | 2 |
 | Owner | Frontend + gateway |
 | Depends on | FR-002; gateway §2–§4 of [15-gateway-requests.md](../15-gateway-requests.md) |
 | Source | [IA §4.5–§4.6](../05-information-architecture.md) |
 
-> **Verified 2026-10-26:** `clientKeySha1` is live on the client payload; a no-op update
-> produced an `updated` audit row with actor and safe before/after snapshots; the activity
-> endpoint is live and returns an empty list because the gateway has no usage-event writer yet.
-> The console shows the live SHA-1, the audit row, and an empty activity state.
+> **Verified 2026-10-31:** `clientKeySha1` is live on the client payload; a no-op update
+> produced an `updated` audit row with actor and safe before/after snapshots. Activity is now
+> file-backed: the console has a date selector and reads both app-client-scoped and user-scoped
+> daily files. Gateway deployment is pending.
 
 ## Intent
 
@@ -29,7 +29,8 @@ In scope:
 - “Add capability” dialog listing inactive capabilities and their routed models.
 - “Admin audit” tab: immutable operator actions for this client.
 - “User activity” tab: metadata-only requests authenticated by this client key.
-- Cursor pagination and explicit empty/pending/error states for both tabs.
+- Date filter (`dd_mm_yyyy`) and cursor pagination with explicit empty/pending/error states.
+- A matching Activity tab on the user detail page, scoped to that UID.
 - Edit details, rotate key, delete unchanged.
 
 Out of scope:
@@ -52,7 +53,8 @@ Out of scope:
 6. The identity card shows `clientKeySha1` when the gateway returns it; otherwise the copy
    control is disabled with a short explanation. The plaintext key is only shown in the
    create/rotate dialog.
-7. Admin audit and user activity load lazily when their tab is selected.
+7. Admin audit and user activity load lazily when their tab is selected. Activity defaults to
+   today and reloads when the selected date changes.
 8. A missing gateway endpoint shows “not available from the gateway yet”, not an error toast.
 9. If the client changes on the gateway while the page holds local edits, a reload notice
    appears; Reload client discards local edits and fetches the latest.
@@ -67,13 +69,15 @@ Out of scope:
 - [x] Missing endpoints show a neutral pending state, and the rest of the page works.
 - [x] Gateway returns `clientKeySha1` on list/get (verified live).
 - [x] Gateway records and exposes client admin audit, including the actor (verified live).
-- [x] Gateway exposes the activity read endpoint and the console shows an empty state when no
-      rows exist.
-- [ ] Gateway records `app_client_id` on authenticated usage events (blocked on the missing
-      usage-event writer).
+- [x] Gateway exposes app-client and user-scoped activity read endpoints, and the console
+      renders dated rows and paginates.
+- [x] Gateway writes metadata-only daily activity records after authenticated `/v1` requests
+      (branch implemented; deployment pending).
 - [x] Audit/activity responses never include keys, secrets, or content.
+- [x] Activity does not display a cost estimate; file-backed records have `credits: 0` and
+      `model: null` until the gateway adds those fields.
 
-The remaining activity-writer item is in
+The gateway implementation and remaining deployment/retention checks are in
 [15-gateway-requests.md §4](../15-gateway-requests.md#4-user-client-activity).
 
 ## Data and API
@@ -82,7 +86,8 @@ The remaining activity-writer item is in
 |---|---|---|
 | GET/POST/PUT/DELETE | `/api/admin/app-clients...` | Existing; add `clientKeySha1` |
 | GET | `/api/admin/app-clients/{id}/audit?limit=&cursor=` | Live |
-| GET | `/api/admin/app-clients/{id}/activity?limit=&cursor=` | Live; rows pending writer |
+| GET | `/api/admin/app-clients/{id}/activity?limit=&cursor=&date=dd_mm_yyyy` | File-backed; date defaults to today |
+| GET | `/api/admin/users/{uid}/activity?limit=&cursor=&date=dd_mm_yyyy` | File-backed; user tab |
 
 Types: `AppClientAuditEntry`, `AppClientActivityEntry` in
 [`shared/admin-api/app-clients.ts`](../../shared/admin-api/app-clients.ts).
@@ -92,17 +97,22 @@ Types: `AppClientAuditEntry`, `AppClientActivityEntry` in
 - SHA-1 is a fingerprint, not an authorization proof.
 - Never return or log the plaintext client key after create/rotate.
 - Admin audit is append-only; store safe before/after snapshots without key material.
-- Activity is metadata only: UID, capability, model, status, credits, latency, time.
+- Activity is metadata only: UID, app-client id, capability, HTTP status, latency, request id, time.
+  Model and credit cost are not captured in the file-backed version, so the console does not show
+  a cost estimate.
 - UIDs and client ids are confidential; no analytics vendor receives them.
 
 ## Test notes
 
 - BFF contract tests cover the new routes, query forwarding, actor header, and a plain-text
   404 from an unimplemented gateway route.
-- Browser validation used fixtures for SHA-1/audit/activity tables and the real gateway for the
-  pending state and add/remove flow.
-- Gateway acceptance (done 2026-10-26): a no-op update produced an audit row; SHA-1 matched the
-  stored digest. Still to test once the writer lands: one `/v1` request appears in activity.
+- Browser validation used a local fake gateway for dated activity rows, the date selector, user
+  activity naming/linking, and the empty/pending states.
+- BFF tests cover date forwarding, app-client and user activity routes, and rejection of an
+  invalid `date`.
+- Gateway acceptance (done 2026-10-31 on the feature branch): one `/v1` request is written to
+  `ACTIVITY_LOG_DIR/{uid}/{dd_mm_yyyy}.log` and both read endpoints return it. Production
+  deployment is still pending.
 
 ## Traceability
 

@@ -12,10 +12,10 @@
   the BFF. The old dummy pages and `features/dashboard` are removed.
 - The gateway shipped the five BackOffice additions: users directory read endpoint, app-client
   SHA-1 identity, client admin audit, per-client activity read endpoint, and persisted provider
-  health. Two data-source gaps remain: the gateway does not yet store verified email/RevenueCat
-  tier, and it has no usage-event writer to attach `app_client_id`. See the status block in
-  [docs/15-gateway-requests.md](docs/15-gateway-requests.md); the console shows honest empty or
-  unknown values for those two gaps.
+  health. User activity is now file-backed: app-client and user-scoped endpoints read daily
+  JSONL files with an optional `date=dd_mm_yyyy` filter; the console exposes both views.
+  Gateway deployment of that branch is still pending. The remaining data-source gap is verified
+  email/RevenueCat tier. See [docs/15-gateway-requests.md](docs/15-gateway-requests.md).
 - `console.dream-team.works` is live behind Cloudflare Access; the BFF runs production auth
   and calls the main gateway at `https://gateway.dream-team.works`. CI deploys `master` to
   `/opt/memechat-backoffice`; see [deploy/README.md](deploy/README.md).

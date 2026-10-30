@@ -13,6 +13,13 @@ function pageSuffix(cursor?: string) {
   return "?limit=50" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
 }
 
+function activitySuffix(cursor?: string, date?: string) {
+  const params = new URLSearchParams({ limit: "50" });
+  if (cursor) params.set("cursor", cursor);
+  if (date) params.set("date", date);
+  return "?" + params.toString();
+}
+
 export const appClientsApi = {
   list: () => apiRequest("/api/admin/app-clients", appClientListSchema),
   get: (id: string) =>
@@ -42,9 +49,12 @@ export const appClientsApi = {
       "/api/admin/app-clients/" + encodeURIComponent(id) + "/audit" + pageSuffix(cursor),
       appClientAuditListSchema,
     ),
-  activity: (id: string, cursor?: string) =>
+  activity: (id: string, cursor?: string, date?: string) =>
     apiRequest(
-      "/api/admin/app-clients/" + encodeURIComponent(id) + "/activity" + pageSuffix(cursor),
+      "/api/admin/app-clients/" +
+        encodeURIComponent(id) +
+        "/activity" +
+        activitySuffix(cursor, date),
       appClientActivityListSchema,
     ),
 };
@@ -55,6 +65,6 @@ export const appClientKeys = {
   detailPrefix: (id: string) => ["app-clients", id] as const,
   audit: (id: string, cursor?: string) =>
     ["app-clients", id, "audit", cursor ?? "first"] as const,
-  activity: (id: string, cursor?: string) =>
-    ["app-clients", id, "activity", cursor ?? "first"] as const,
+  activity: (id: string, cursor?: string, date?: string) =>
+    ["app-clients", id, "activity", date ?? "default", cursor ?? "first"] as const,
 };
