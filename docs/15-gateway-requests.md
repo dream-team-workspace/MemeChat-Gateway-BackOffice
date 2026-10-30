@@ -1,10 +1,10 @@
 # Gateway changes requested by the BackOffice
 
-**Date:** 2026-10-25 · **Updated:** 2026-10-26
+**Date:** 2026-10-25 · **Updated:** 2026-10-31
 **Audience:** MemeChat Gateway backend team (repo: `dream-team-workspace/MemeChat-Gateway`)
-**Status:** Partially implemented — gateway shipped `migrations/0004_backoffice_contract.sql`,
-the read endpoints, client SHA-1, app-client audit, and provider health persistence on
-2026-10-25/26. Two data-source gaps remain (§1 email/tier write path and §4 activity writer).
+**Status:** Implemented, deployment pending. User activity is now file-backed
+(`MemeChat-Gateway/docs/20-file-user-activity.md`) instead of a high-volume SQL writer.
+The remaining data-source gap is §1 verified email/RevenueCat tier.
 
 > Hand this file to the gateway team unchanged. §0 is the work list, §6 is the exact JSON
 > contract the console validates, §8 is the acceptance checklist, and §9 is the list of
@@ -22,18 +22,18 @@ and exercised each surface through the BFF and console.
 | §1 RevenueCat tier sync | **Not implemented** | Tier is `unknown`; no entitlement mapping or write path |
 | §2 `clientKeySha1` | Shipped | Live on list/get; digest matches `app_clients.client_key_hash` |
 | §3 app-client audit | Shipped | A no-op PUT produced one `updated` row with actor and safe snapshots |
-| §4 activity read endpoint | Shipped | Endpoint returns `{items: [], nextCursor: null}`; empty because no usage writer |
-| §4 activity write path | **Not implemented** | No usage-event writer exists yet, so `app_client_id` is never attached |
+| §4 activity read endpoints | Implemented on `feat/file-user-activity`; deployment pending | App-client and user-scoped endpoints read daily JSONL files with an optional `date=dd_mm_yyyy` |
+| §4 activity write path | Implemented on `feat/file-user-activity`; deployment pending | Middleware writes one metadata line after the handler; no DB write on the request path |
 | §5 provider health persistence | Shipped | Probe wrote `provider_health`; `lastCheck` survived a gateway restart |
 
 > **Deploy note:** apply `migrations/0004_backoffice_contract.sql` **before** deploying the
 > gateway code. App-client create/update/rotate/delete insert the audit row in the same
 > transaction, so the migration is required for those mutations to succeed.
 
-The console needed no code changes for the shipped fields. It now shows the live SHA-1 digest
-and audit rows, and the provider list shows the persisted check. User activity correctly shows
-an empty state (not “endpoint missing”), and the users directory shows “Email not captured” /
-“Unknown” with a note while the write path is absent.
+The console shows the live SHA-1 digest and audit rows, and the provider list shows the
+persisted check. The file-backed activity views add a date selector and render rows for the
+selected day; the users directory still shows “Email not captured” / “Unknown” with a note
+while the email/tier write path is absent.
 
 ### What is still needed before FR-018 and FR-019 can pass live
 
@@ -60,28 +60,26 @@ an empty state (not “endpoint missing”), and the users directory shows “Em
 4. **Acceptance:** a signed-in test account shows a real email and `pro` or `ultra`; a second
    account with no subscription shows the agreed fallback (`free` or `unknown`).
 
-**B. User-client activity (FR-019)**
+**B. User-client activity (FR-019) — resolved by file-backed logging**
 
-1. **Where usage rows are written:** the gateway has no usage-event writer at all today (no
-   `INSERT INTO usage_events` outside tests). This is broader than attaching a client id: the
-   activity screen stays empty until the usage pipeline exists. Do not add a separate
-   synchronous write per request; write one row when the usage/credit pipeline records a
-   completed request.
-2. **Attach the client:** after `X-App-Client-Key` resolves, put the app-client id in request
-   context and include it on the same usage row (`usage_events.app_client_id`). Rejected
-   requests are optional; if wanted, add a separate access-event table rather than abusing
-   usage rows.
-3. **Acceptance:** one authenticated `/v1` request through a client key appears in
-   `GET /internal/admin/app-clients/{id}/activity` with uid, request id, capability, model,
-   status, credits, latency, and timestamp.
+1. **Storage:** activity is written as `ACTIVITY_LOG_DIR/{uid}/{dd_mm_yyyy}.log`, one JSON
+   object per line. There is no synchronous database insert on the request path.
+2. **Scope:** the gateway exposes app-client-scoped and user-scoped read endpoints. Both accept
+   `date=dd_mm_yyyy` and default to today.
+3. **Fields:** uid, app-client id/slug, request id, method, path, capability, HTTP status,
+   latency, and timestamp. Request bodies, message text, audio, keys, and auth headers are not
+   stored. `model` is null and `credits` is 0 in the console contract for this version.
+4. **Acceptance:** one authenticated `/v1` request appears in the app-client activity view for
+   that day and in the user's activity tab. The console exposes both with a date selector.
 
 Everything else in §6 is already satisfied by the live gateway.
 
 This document is the hand-off for the gateway work the operator console depends on. The
 BackOffice is **live-only**: every screen calls `/internal/admin/*` through the BFF, and there
-is no mock store. The shipped endpoints are consumed live; the only degraded displays are the
-two data gaps above (email/tier shown as null/unknown, activity shown as empty). A console
-release is not required when the remaining write paths land, provided the JSON matches §6.
+is no mock store. The shipped endpoints are consumed live. The only degraded display is
+email/tier shown as null/unknown; file-backed activity is available once the gateway branch is
+deployed. A console release is not required when the email/tier write path lands, provided the
+JSON matches §6.
 
 The changes are **additive**. Existing fields, routes, and clients must keep working.
 
@@ -94,7 +92,7 @@ The changes are **additive**. Existing fields, routes, and clients must keep wor
 | 1 | Users directory (email, tier) | Read endpoint shipped; **email/tier write path pending** |
 | 2 | App client detail (`clientKeySha1`) | **Shipped and verified** |
 | 3 | App client audit | **Shipped and verified** |
-| 4 | User-client activity | Read endpoint shipped; **usage writer pending** |
+| 4 | User-client and per-user activity | **File-backed implementation ready; deployment pending** |
 | 5 | Provider health persistence | **Shipped and verified across restart** |
 
 Suggested rollout order: **5 → 2 → 1 → 3 → 4**. §5 is independent; §1 needs a privacy decision;
@@ -364,9 +362,10 @@ GET /internal/admin/app-clients/{id}/audit?limit=50&cursor=opaque
 
 ## 4. User-client activity
 
-> **Current status:** `usage_events.app_client_id`, the index, and the read endpoint are live.
-> No usage-event writer exists yet, so the endpoint returns an empty list. The write path below
-> is the remaining work.
+> **Current status (2026-10-31):** superseded by the file-backed implementation in the gateway
+> repo (`docs/20-file-user-activity.md`). The SQL design below is retained as history; do not
+> implement both. The console consumes `GET .../app-clients/{id}/activity` and
+> `GET .../users/{uid}/activity`, each with an optional `date=dd_mm_yyyy`.
 
 ### Why
 
@@ -406,11 +405,12 @@ table later; it is **not** required for the first version of this screen. The cu
 ### Endpoint
 
 ```
-GET /internal/admin/app-clients/{id}/activity?limit=50&cursor=opaque
+GET /internal/admin/app-clients/{id}/activity?limit=50&cursor=opaque&date=dd_mm_yyyy
+GET /internal/admin/users/{uid}/activity?limit=50&cursor=opaque&date=dd_mm_yyyy
 ```
 
-- 404 if the client does not exist.
-- Only rows with that `app_client_id`; newest first; keyset on `id desc`.
+- 404 if the app client does not exist.
+- Newest first; opaque offset cursor; `date` defaults to today.
 - Metadata only: no prompt, image, audio, or message text.
 
 ```json
@@ -422,9 +422,9 @@ GET /internal/admin/app-clients/{id}/activity?limit=50&cursor=opaque
       "uid": "uid_7f3a9c21",
       "requestId": "9cde27e0-9a6b-4c9e-bdf4-7f2c1a4f3e21",
       "capability": "chat.standard",
-      "model": "deepseek-v4.1-flash",
+      "model": null,
       "status": "ok",
-      "credits": 1,
+      "credits": 0,
       "latencyMs": 840,
       "createdAt": "2026-10-25T09:05:00+07:00"
     }
@@ -433,7 +433,7 @@ GET /internal/admin/app-clients/{id}/activity?limit=50&cursor=opaque
 }
 ```
 
-`model` is nullable. `credits` and `latencyMs` follow the existing usage event.
+`model` is nullable and `credits` is 0 in the file-backed version; `latencyMs` is recorded.
 
 ### Concerns
 
@@ -656,7 +656,9 @@ Still open:
 
 - [ ] Retention/purge jobs for app-client audit and usage activity.
 - [ ] Sign-in write path for verified email and RevenueCat tier.
-- [ ] A usage-event writer that records `app_client_id`.
+- [x] File-backed activity writer and app-client/user read endpoints (gateway branch ready).
+- [ ] Deploy the gateway activity branch and verify one `/v1` request in both console views.
+- [ ] Retention/purge job for daily activity files.
 
 Re-run the BackOffice checks after the remaining write paths land:
 
@@ -696,4 +698,5 @@ Then verify in the console:
    audited.
 
 Until these are answered, the BackOffice defaults are: no guessed email or tier (`null` /
-`unknown`), deleted users hidden, activity empty, and mutations audited only.
+`unknown`), deleted users hidden, file-backed activity for the selected day, and mutations
+audited only.

@@ -55,13 +55,14 @@ an app-owned login session.
 | DELETE | `/api/admin/app-clients/:id` | `DELETE .../app-clients/{id}` | `{deleted}` |
 | POST | `/api/admin/app-clients/:id/key/rotate` | `POST .../app-clients/{id}/key/rotate` | `AppClient` with one-time `clientKey` |
 | GET | `/api/admin/app-clients/:id/audit` | `GET .../app-clients/{id}/audit?limit=&cursor=` | `{items,nextCursor}` |
-| GET | `/api/admin/app-clients/:id/activity` | `GET .../app-clients/{id}/activity?limit=&cursor=` | `{items,nextCursor}` |
+| GET | `/api/admin/app-clients/:id/activity` | `GET .../app-clients/{id}/activity?limit=&cursor=&date=dd_mm_yyyy` | `{items,nextCursor}` |
 | GET | `/api/admin/models` | `GET /internal/admin/models` | `Model[]` |
 | PUT | `/api/admin/models/:id` | `PUT /internal/admin/models/{id}` | `Model` |
 | POST | `/api/admin/cache/invalidate` | `POST .../cache/invalidate` | `{invalidatedAt, revision?}` |
 | GET | `/api/admin/users` | `GET ...?limit=&cursor=&query=` | `{items: UserSummary[], nextCursor}` |
 | GET | `/api/admin/users/:uid/ledger` | `GET .../ledger?limit=&cursor=` | `{items,nextCursor}` |
 | GET | `/api/admin/users/:uid/usage` | `GET .../usage?limit=&cursor=` | `{items,nextCursor}` |
+| GET | `/api/admin/users/:uid/activity` | `GET .../activity?limit=&cursor=&date=dd_mm_yyyy` | `{items,nextCursor}` |
 | POST | `/api/admin/users/:uid/credits/grant` | `POST .../credits/grant` | `CreditGrantResult` |
 | GET | `/api/admin/revenuecat/status` | `GET /internal/admin/revenuecat/status` | `RevenueCatStatus` (no secret) |
 | GET | `/api/admin/providers` | `GET /internal/admin/providers` | `{items: ProviderStatus[]}` |
@@ -94,10 +95,12 @@ works with older gateway builds; the direct route is available for future use.
 keyset pagination. The gateway emits an opaque cursor; the BFF passes `limit` and `cursor` and
 normalizes `{items,nextCursor}`. The audit page supports "Load older".
 
-**Gateway live (2026-10-26):** the users directory, app-client audit/activity, `clientKeySha1`,
-and provider `lastCheck` are implemented. Two data gaps remain: email/tier have no write path
-(directory shows null/unknown) and no usage-event writer attaches `app_client_id` (activity is
-empty). Exact SQL, payloads, privacy notes, and the remaining acceptance checks are in
+**Gateway live (2026-10-31):** user activity is file-backed. `GET .../app-clients/{id}/activity`
+and `GET .../users/{uid}/activity` read daily JSONL files and accept `date=dd_mm_yyyy`
+(default: today). Rows are metadata only; `model` is null and `credits` is 0 in this version.
+The console offers a date selector on both views and does not display a cost estimate.
+Email/tier still have no write path (directory shows null/unknown). Exact SQL, payloads,
+privacy notes, and the remaining acceptance checks are in
 [15-gateway-requests.md](15-gateway-requests.md).
 
 ## 3. Canonical types

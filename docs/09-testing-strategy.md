@@ -77,8 +77,9 @@ Rules:
 Every fixture and real response must parse with the shared Zod schema.
 
 - Fixtures for: capability list/detail, providers (including persisted `lastCheck`), models,
-  audit, app clients (including `clientKeySha1`), app-client audit/activity, signed-in user
-  directory, ledger states (all seven), usage statuses, grant success/error, error envelope.
+  audit, app clients (including `clientKeySha1`), app-client audit/activity, user activity,
+  signed-in user directory, ledger states (all seven), usage statuses, grant success/error,
+  error envelope.
 - Golden files for upstream snake_case → canonical camelCase.
 - Negative fixtures: missing fields, wrong types, unknown enum values (should fail or map to
   `unknown` deliberately).

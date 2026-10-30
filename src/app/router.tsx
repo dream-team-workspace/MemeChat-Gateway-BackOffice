@@ -22,6 +22,7 @@ import { OverviewPage } from "@/features/overview";
 import { ProvidersPage } from "@/features/providers";
 import { SettingsPage } from "@/features/settings";
 import {
+  UserActivityPage,
   UserDetailLayout,
   UserLedgerPage,
   UsersPage,
@@ -152,6 +153,12 @@ const userUsageRoute = createRoute({
   component: UserUsagePage,
 });
 
+const userActivityRoute = createRoute({
+  getParentRoute: () => userRoute,
+  path: "activity",
+  component: UserActivityPage,
+});
+
 const operationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/operations",
@@ -183,6 +190,7 @@ const routeTree = rootRoute.addChildren([
       userIndexRoute,
       userLedgerRoute,
       userUsageRoute,
+      userActivityRoute,
     ]),
     operationsRoute,
     settingsRoute,

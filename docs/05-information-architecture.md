@@ -73,13 +73,14 @@ Breadcrumb examples:
 | `/capabilities/:capabilityId/routing` | Provider routing | Required | capability providers | Replace chain |
 | `/capabilities/:capabilityId/audit` | Audit history | Required | `GET .../audit` | Inspect a change |
 | `/app-clients` | App clients | Required | `GET /app-clients` | Add/open client |
-| `/app-clients/:clientId` | Client access, audit, activity | Required | client + capabilities + providers + audit/activity | Save grants, inspect audit |
+| `/app-clients/:clientId` | Client access, audit, activity | Required | client + capabilities + providers + dated audit/activity | Save grants, inspect audit |
 | `/models` | Model catalog | Required | `GET /models` | Add/edit model |
 | `/providers` | Provider connections | Required | provider status + capabilities | Check health |
 | `/users` | User directory + lookup | Required | users directory | Find by ID/email |
 | `/users/:uid` | Redirect to ledger | Required | — | — |
 | `/users/:uid/ledger` | User ledger | Required | ledger | Inspect state |
 | `/users/:uid/usage` | User usage | Required | usage | Inspect metadata |
+| `/users/:uid/activity` | User activity | Required | dated file-backed activity | Inspect requests |
 | `/operations` | Operations | Required | health, cache action | Invalidate cache |
 | `/settings` | Settings | Required | session | Change appearance |
 | `/forbidden` | 403 | Required | session | Go back |
