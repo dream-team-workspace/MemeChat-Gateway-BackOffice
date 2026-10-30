@@ -1,4 +1,5 @@
 import {
+  appClientActivityListSchema,
   creditGrantResultSchema,
   ledgerPageSchema,
   usagePageSchema,
@@ -35,6 +36,12 @@ export const usersApi = {
       "?limit=" + String(limit) + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
     return apiRequest(path(uid, "usage") + suffix, usagePageSchema);
   },
+  activity: (uid: string, cursor?: string, date?: string, limit = 50) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    if (date) params.set("date", date);
+    return apiRequest(path(uid, "activity") + "?" + params.toString(), appClientActivityListSchema);
+  },
   grant: (uid: string, input: CreditGrantInput) =>
     apiRequest(path(uid, "credits/grant"), creditGrantResultSchema, {
       method: "POST",
@@ -49,4 +56,6 @@ export const userKeys = {
   ledgerPrefix: (uid: string) => ["users", uid, "ledger"] as const,
   ledger: (uid: string, cursor?: string) => ["users", uid, "ledger", cursor ?? "first"] as const,
   usage: (uid: string, cursor?: string) => ["users", uid, "usage", cursor ?? "first"] as const,
+  activity: (uid: string, cursor?: string, date?: string) =>
+    ["users", uid, "activity", date ?? "default", cursor ?? "first"] as const,
 };

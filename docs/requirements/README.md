@@ -86,7 +86,7 @@ notes pass.
 | FR-016 | all mutations | all mutations | E5/E7/E13 |
 | FR-017 | dev/test | mock routes | MSW/BFF tests |
 | FR-018 | /users | GET /api/admin/users | Live directory; email/tier write pending |
-| FR-019 | /app-clients/:id | SHA-1, audit, activity | Live SHA/audit; activity writer pending |
+| FR-019 | /app-clients/:id | SHA-1, audit, activity | Live SHA/audit; file-backed activity ready, gateway deploy pending |
 | FR-020 | /providers | lastCheck | Live; verified across restart |
 
 ## Changing a requirement

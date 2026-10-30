@@ -188,13 +188,23 @@ and persisted provider health (`lastCheck` survives restarts). Still missing: th
 path for verified email/RevenueCat tier, and a usage-event writer that attaches
 `app_client_id`. See [docs/15-gateway-requests.md](docs/15-gateway-requests.md).
 
+### 2026-10-31
+
+User activity is file-backed. The gateway writes one metadata line per authenticated `/v1`
+request under `ACTIVITY_LOG_DIR/{uid}/{dd_mm_yyyy}.log` and exposes app-client-scoped and
+user-scoped read endpoints with an optional `date=dd_mm_yyyy` filter. The console has a date
+selector on the app-client activity tab and a new Activity tab on the user detail page. The
+gateway branch is deployed separately; model and credit cost are not captured yet, so the
+console does not show a cost estimate. See the gateway repository's
+`docs/20-file-user-activity.md`.
+
 ## What remains
 
-- Complete the two remaining gateway data sources in
+- Deploy the gateway file-activity branch and verify one `/v1` request in both console views.
+- Complete the remaining gateway data source in
   [docs/15-gateway-requests.md](docs/15-gateway-requests.md): store verified Firebase email and
-  the RevenueCat-derived tier on sign-in, and attach `app_client_id` when the usage-event writer
-  lands. The directory, SHA-1, client audit, provider health, and activity read endpoints are
-  live; the activity screen is empty until the writer exists.
+  the RevenueCat-derived tier on sign-in. The directory, SHA-1, client audit, provider health,
+  and file-backed activity endpoints are implemented.
 - Publish/review the gateway admin API changes (working tree, not committed here) and verify
   the exact contract against staging.
 - Configure production RevenueCat credentials; grants are a live external mutation.
@@ -244,7 +254,7 @@ Start with the [documentation index](docs/README.md).
 | [docs/10-ci-cd-and-environments.md](docs/10-ci-cd-and-environments.md) | CI, branches, deployment |
 | [docs/11-roadmap.md](docs/11-roadmap.md) | Phases and remaining work |
 | [docs/14-cloudflare-access.md](docs/14-cloudflare-access.md) | Access/tunnel setup |
-| [docs/15-gateway-requests.md](docs/15-gateway-requests.md) | Gateway contract status, remaining email/tier and activity write paths |
+| [docs/15-gateway-requests.md](docs/15-gateway-requests.md) | Gateway contract status, file activity, remaining email/tier path |
 | [docs/requirements/README.md](docs/requirements/README.md) | Requirement index |
 
 ---

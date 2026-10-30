@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 
 import {
+  appClientActivityEntrySchema,
+  appClientActivityListSchema,
   creditGrantInputSchema,
   creditGrantResultSchema,
   ledgerEntrySchema,
@@ -16,6 +18,7 @@ import type { AppEnv } from "../types.js";
 import {
   jsonBody,
   normalizePage,
+  readActivityQuery,
   readPageQuery,
   readUid,
   readUserQuery,
@@ -63,6 +66,24 @@ users.get("/:uid/usage", async (c) => {
     { requestId: c.get("requestId") },
   );
   return c.json(usagePageSchema.parse(normalizePage(camelize(raw), usageEventSchema)));
+});
+
+users.get("/:uid/activity", async (c) => {
+  const uid = readUid(c);
+  const query = readActivityQuery(c);
+  const params = new URLSearchParams({ limit: String(query.limit) });
+  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.date) params.set("date", query.date);
+  const raw = await adminFetch(
+    "/internal/admin/users/" + encodeURIComponent(uid) + "/activity?" + params.toString(),
+    c.get("actor"),
+    { requestId: c.get("requestId") },
+  );
+  return c.json(
+    appClientActivityListSchema.parse(
+      normalizePage(camelize(raw), appClientActivityEntrySchema),
+    ),
+  );
 });
 
 users.post("/:uid/credits/grant", async (c) => {
