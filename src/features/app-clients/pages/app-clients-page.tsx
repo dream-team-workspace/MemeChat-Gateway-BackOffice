@@ -183,7 +183,9 @@ function LinkCard({ client, onOpen }: { client: AppClient; onOpen: () => void })
               {client.enabled ? "Enabled" : "Disabled"}
             </Badge>
             <Badge variant="outline">
-              {mappedCount(client)}/5 abilities routed
+              {client.routes
+                ? mappedCount(client) + "/5 abilities routed"
+                : mappedCount(client) + " capabilities enabled"}
             </Badge>
             <Badge variant={client.requireFirebaseUid ? "info" : "outline"}>
               {client.requireFirebaseUid ? "Firebase UID required" : "Firebase UID not required"}

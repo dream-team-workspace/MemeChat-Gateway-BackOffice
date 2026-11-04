@@ -99,7 +99,7 @@ export const appClientInputSchema = z.object({
   enabled: z.boolean(),
   requireFirebaseUid: z.boolean().default(false),
   /** New clients may send routes; the gateway mirrors capabilities for rollout. */
-  routes: z.array(appClientRouteInputSchema).optional(),
+  routes: z.array(appClientRouteInputSchema).max(5).optional(),
   capabilities: z.array(appClientCapabilityInputSchema),
 });
 

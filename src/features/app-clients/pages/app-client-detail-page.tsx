@@ -152,7 +152,8 @@ function AppClientEditor({ client }: { client: AppClient }) {
             <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">{client.description}</p>
           ) : null}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Updated {formatDateTime(client.updatedAt)} · {routed}/5 abilities routed
+            Updated {formatDateTime(client.updatedAt)} ·{" "}
+            {client.routes ? routed + "/5 abilities routed" : routed + " capabilities enabled"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

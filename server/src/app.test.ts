@@ -305,6 +305,15 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       503,
     );
   }
+  if (url.pathname === "/internal/admin/providers/invalid") {
+    return json(
+      {
+        code: "VALIDATION_FAILED",
+        message: "model \"bad\" belongs to ability \"tts\", not \"llm\"",
+      },
+      422,
+    );
+  }
   if (url.pathname === "/internal/admin/abilities") {
     return json({ items: [ability] });
   }
@@ -566,6 +575,22 @@ describe("live-only BFF admin API", () => {
     expect(await updated.text()).not.toContain("sk_rotated");
     expect(calls.at(-1)?.body).toContain('"api_key":"sk_rotated"');
 
+    const cleared = await app.request("/api/admin/providers/opencode", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "OpenCode",
+        kind: "llm",
+        baseUrl: "https://opencode.test/v1",
+        enabled: true,
+        clearApiKey: true,
+        config: {},
+      }),
+    });
+    expect(cleared.status).toBe(200);
+    expect(calls.at(-1)?.body).toContain('"clear_api_key":true');
+    expect(calls.at(-1)?.body).not.toContain('"api_key"');
+
     const models = await jsonBody<{ items: Array<{ modelId: string }> }>(
       await app.request("/api/admin/providers/opencode/models"),
     );
@@ -621,6 +646,22 @@ describe("live-only BFF admin API", () => {
     expect((await jsonBody<{ code: string }>(secret)).code).toBe(
       "SECRET_KEY_NOT_CONFIGURED",
     );
+
+    const invalid = await app.request("/api/admin/providers/invalid", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "Invalid",
+        kind: "llm",
+        baseUrl: "",
+        enabled: true,
+        config: {},
+      }),
+    });
+    expect(invalid.status).toBe(422);
+    expect(await jsonBody<{ code: string; message: string }>(invalid)).toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
   });
 
   it("reads abilities and saves app-client ability routes", async () => {

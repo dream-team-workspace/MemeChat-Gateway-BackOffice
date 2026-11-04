@@ -77,7 +77,7 @@ export function RouteEditor({ client }: { client: AppClient }) {
   const save = useSaveAppClientRoutes(client.id);
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<RouteDraft[]>(() => toRouteDraft(client.routes));
-  const [baseline, setBaseline] = useState(client.updatedAt);
+  const [baseline, setBaseline] = useState<RouteDraft[]>(() => toRouteDraft(client.routes));
   const [error, setError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -88,7 +88,7 @@ export function RouteEditor({ client }: { client: AppClient }) {
     onSuccess: (updated) => {
       queryClient.setQueryData(appClientKeys.detail(client.id), updated);
       setDraft(toRouteDraft(updated.routes));
-      setBaseline(updated.updatedAt);
+      setBaseline(toRouteDraft(updated.routes));
       setError(null);
       setRowError(null);
       setConflict(false);
@@ -148,8 +148,9 @@ export function RouteEditor({ client }: { client: AppClient }) {
     updateRow(ability, { providerId: "", modelId: "" });
   }
 
-  const serverChanged = client.updatedAt !== baseline;
-  const dirty = !routesEqual(draft, toRouteDraft(client.routes));
+  const serverRoutes = toRouteDraft(client.routes);
+  const serverChanged = !routesEqual(baseline, serverRoutes);
+  const dirty = !routesEqual(draft, baseline);
   const incomplete = firstIncomplete(draft);
   const isLoading = abilities.isLoading || providers.isLoading;
   const loadError = abilities.error ?? providers.error;
@@ -185,7 +186,7 @@ export function RouteEditor({ client }: { client: AppClient }) {
     save.mutate(routeInputs(draft), {
       onSuccess: (updated) => {
         setDraft(toRouteDraft(updated.routes));
-        setBaseline(updated.updatedAt);
+        setBaseline(toRouteDraft(updated.routes));
         setNotice("Routes saved");
         setRowError(null);
       },
@@ -284,7 +285,7 @@ export function RouteEditor({ client }: { client: AppClient }) {
           variant="outline"
           onClick={() => {
             setDraft(toRouteDraft(client.routes));
-            setBaseline(client.updatedAt);
+            setBaseline(toRouteDraft(client.routes));
             setError(null);
             setRowError(null);
             setNotice(null);

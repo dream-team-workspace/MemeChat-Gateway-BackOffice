@@ -214,7 +214,7 @@ export function ProviderDetailPage() {
           );
         })}
         <Badge variant="outline" className="ml-auto my-1.5 hidden sm:inline-flex">
-          {provider.models.length} models
+          {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
         </Badge>
       </nav>
 

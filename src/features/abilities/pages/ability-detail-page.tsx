@@ -129,7 +129,7 @@ export function AbilityDetailPage() {
           </div>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">{ability.id}</p>
           <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
-            {providerIds.length} providers · {ability.models.length} catalogue models · {profiles.length} legacy cost profiles.
+            {providerIds.length} {providerIds.length === 1 ? "provider" : "providers"} · {ability.models.length} catalogue models · {profiles.length} legacy cost profiles.
           </p>
         </div>
         <Button

@@ -16,6 +16,7 @@ import {
   useCreateAppClient,
   useUpdateAppClient,
 } from "@/features/app-clients/mutations/app-clients.mutations";
+import { routeInputsForMetadataEdit } from "@/features/app-clients/lib/app-client-routes";
 import { getErrorMessage } from "@/platform/api";
 
 type Draft = {
@@ -101,26 +102,7 @@ export function AppClientFormDialog({
       // Preserve the ability routes when editing metadata. The gateway treats a
       // supplied route set as authoritative; omitting it would derive routes
       // from the legacy capability mirror and could silently replace them.
-      routes: client?.routes
-        ? client.routes
-            .filter(
-              (route) =>
-                route.enabled &&
-                route.providerId !== null &&
-                route.modelId !== null,
-            )
-            .map((route) => ({
-              ability: route.ability as
-                | "llm"
-                | "tts"
-                | "stt"
-                | "embeddings"
-                | "vector",
-              providerId: route.providerId ?? "",
-              modelId: route.modelId ?? "",
-              enabled: true,
-            }))
-        : undefined,
+      routes: routeInputsForMetadataEdit(client),
       capabilities: (client?.capabilities ?? []).map((capability) => ({
         capabilityId: capability.capabilityId,
         modelId: capability.modelId,

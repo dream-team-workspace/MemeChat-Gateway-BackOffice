@@ -91,7 +91,7 @@ function ProviderCard({ provider }: { provider: ProviderStatus }) {
         <dl className="grid grid-cols-2 gap-3 text-xs">
           <div>
             <dt className="text-muted-foreground">Credential</dt>
-            <dd className={cn("mt-1 font-medium", !provider.configured && "text-warning-foreground")}>
+            <dd className={cn("mt-1 font-medium", !provider.configured && "text-warning")}>
               {provider.configured
                 ? "Key " + (provider.apiKeyHint ?? "configured")
                 : "Key missing"}

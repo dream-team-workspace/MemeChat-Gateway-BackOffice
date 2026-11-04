@@ -118,13 +118,13 @@ export function RouteRow({
           No provider serves this ability. <Link to="/providers" className="underline">Add one</Link> first.
         </p>
       ) : value.providerId !== "" && models.length === 0 ? (
-        <p className="mt-2 text-[11px] text-warning-foreground">
+        <p className="mt-2 text-[11px] text-warning">
           This provider has no model for {label}. <Link to="/providers/$providerId" params={{ providerId: value.providerId }} className="underline">Add a model</Link> before routing.
         </p>
       ) : null}
 
       {provider && !provider.configured ? (
-        <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
+        <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
           <p>
             Provider key is missing. Calls will return 503 until a key is set.{" "}
