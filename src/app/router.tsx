@@ -5,16 +5,15 @@ import {
   redirect,
 } from "@tanstack/react-router";
 
+import { AbilitiesPage, AbilityDetailPage } from "@/features/abilities";
 import { AppClientDetailPage, AppClientsPage } from "@/features/app-clients";
 import { AppLayout } from "@/app/layouts/app-layout";
 import { RootLayout } from "@/app/layouts/root-layout";
 import { NotFoundPage } from "@/app/not-found-page";
 import {
-  CapabilitiesPage,
   CapabilityAuditPage,
   CapabilityDetailLayout,
   CapabilityOverviewPage,
-  CapabilityRoutingPage,
 } from "@/features/capabilities";
 import { ModelsPage } from "@/features/models";
 import { OperationsPage } from "@/features/operations";
@@ -64,10 +63,24 @@ const overviewRoute = createRoute({
   component: OverviewPage,
 });
 
+const abilitiesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/abilities",
+  component: AbilitiesPage,
+});
+
+const abilityRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/abilities/$abilityId",
+  component: AbilityDetailPage,
+});
+
 const capabilitiesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/capabilities",
-  component: CapabilitiesPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/abilities" });
+  },
 });
 
 const capabilityRoute = createRoute({
@@ -85,7 +98,12 @@ const capabilityOverviewRoute = createRoute({
 const capabilityRoutingRoute = createRoute({
   getParentRoute: () => capabilityRoute,
   path: "routing",
-  component: CapabilityRoutingPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: "/capabilities/$capabilityId",
+      params: { capabilityId: params.capabilityId },
+    });
+  },
 });
 
 const capabilityAuditRoute = createRoute({
@@ -181,6 +199,8 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
     overviewRoute,
+    abilitiesRoute,
+    abilityRoute,
     capabilitiesRoute,
     capabilityRoute.addChildren([
       capabilityOverviewRoute,

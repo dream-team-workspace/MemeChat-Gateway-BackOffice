@@ -1,4 +1,6 @@
 import { Link, Outlet, useParams, useRouterState } from "@tanstack/react-router";
+
+import { abilityFromLegacyKind } from "@shared/admin-api";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -13,8 +15,7 @@ import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { label: "Overview", to: "/capabilities/$capabilityId" as const },
-  { label: "Routing", to: "/capabilities/$capabilityId/routing" as const },
+  { label: "Cost and limits", to: "/capabilities/$capabilityId" as const },
   { label: "Audit", to: "/capabilities/$capabilityId/audit" as const },
 ];
 
@@ -49,15 +50,17 @@ export function CapabilityDetailLayout() {
   }
 
   const basePath = "/capabilities/" + capability.id;
+  const abilityId = abilityFromLegacyKind(capability.kind);
 
   return (
     <div className="animate-in">
       <Link
-        to="/capabilities"
+        to="/abilities/$abilityId"
+        params={{ abilityId }}
         className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
-        All capabilities
+        Back to ability
       </Link>
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -82,6 +85,13 @@ export function CapabilityDetailLayout() {
           </Button>
           <KillSwitchDialog capability={capability} />
         </div>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-info/20 bg-info/5 px-4 py-3 text-xs text-muted-foreground">
+        Legacy cost and limits profile. Provider and model selection now lives on the{" "}
+        <Link to="/abilities/$abilityId" params={{ abilityId }} className="font-medium text-foreground underline underline-offset-4">
+          ability page
+        </Link>.
       </div>
 
       {!capability.enabled ? (
@@ -114,7 +124,8 @@ export function CapabilityDetailLayout() {
           );
         })}
         <Link
-          to="/capabilities"
+          to="/abilities/$abilityId"
+          params={{ abilityId }}
           className={cn(
             buttonVariants({ variant: "ghost", size: "sm" }),
             "ml-auto hidden text-muted-foreground sm:inline-flex",
