@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Superseded by FR-022 for navigation; capability rows are retained as cost/limits profiles |
 | Priority | Must |
 | Phase | 2 |
 | Owner | Frontend |

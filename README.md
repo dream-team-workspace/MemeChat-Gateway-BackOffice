@@ -1,8 +1,9 @@
 # MemeChat Gateway BackOffice
 
 Internal operator console for the **MemeChat AI Gateway**. It gives the team a safe,
-auditable UI over the gateway's backend-management surface: capability registry, provider
-routing, kill switches, model catalog, user ledger/usage, credit grants, and system operations.
+auditable UI over the gateway's backend-management surface: provider credentials and model
+catalogs, the ability catalog, per-app-client ability routes, capability cost/limits, kill
+switches, user ledger/usage, credit grants, and system operations.
 
 > **Status: Phase 1 — operator console with live gateway support.** The domain-oriented React
 > UI, Cloudflare Access login, shared Zod contract, and Hono BFF are implemented. The gateway
@@ -21,22 +22,31 @@ routing, kill switches, model catalog, user ledger/usage, credit grants, and sys
 
 - **Cloudflare Access login** — identity is read from `/cdn-cgi/access/get-identity`;
   sign-out uses `/cdn-cgi/access/logout`. Local dev uses `VITE_DEV_AUTH_EMAIL`.
-- **Domain-oriented UI** — overview, capabilities (list, configuration, routing, audit,
-  kill switch), app clients (capability/model matrix), models (create/edit), providers
-  (connection details and health probes), users (lookup, ledger, usage, grant), operations
-  (health, RevenueCat, cache invalidation), and settings.
-- **App clients** — create Android/iOS/web/backend clients, enable the capabilities each one
-  may consume, and bind each enabled capability to a model from that capability's routed
-  catalog. Every client always shows the full capability matrix. Each client gets a one-time
-  40-character identity key (store only its SHA-1 digest); the app sends it as
-  `X-App-Client-Key`, and rotation immediately invalidates the old key. Clients can require
-  the app-asserted `X-Firebase-Uid` header; optional clients may omit it.
+- **Domain-oriented UI** — overview, providers (create/edit, write-only keys, model catalog,
+  health), abilities (five-ability catalog and legacy cost/limits profiles), app clients
+  (ability → provider → model routes), models (legacy app picker), users (lookup, ledger,
+  usage, activity, grant), operations (health, RevenueCat, cache invalidation), and settings.
+- **Providers** — create and edit a provider, set/replace/remove its API key without a redeploy,
+  and manage the models it advertises. Keys are password fields only; the gateway returns a
+  masked hint. The browser never receives the plaintext key.
+- **Abilities** — language model, text to speech, speech to text, embeddings, and vector
+  storage. Each ability page lists available providers/models and links to the legacy
+  capability cost/limits profiles. The old global provider-chain editor is removed from the
+  primary path.
+- **App clients** — create Android/iOS/web/backend clients and choose one provider and model
+  per ability in the Access tab. The editor filters providers by ability and models by
+  provider + ability, warns (without blocking) when the provider key is missing, and saves the
+  complete route set atomically. Each client gets a one-time 40-character identity key (store
+  only its SHA-1 digest); the app sends it as `X-App-Client-Key`, and rotation immediately
+  invalidates the old key. Clients can require the app-asserted `X-Firebase-Uid` header;
+  optional clients may omit it.
 - **BFF** — Hono on Node, Cloudflare Access JWT validation in production, live gateway proxy
   with admin-secret injection and canonical mapping, request IDs, error envelope, origin
   checks, security headers, static serving, and graceful shutdown. Every request is forwarded
   to the gateway; no data is synthesized locally.
-- **Shared contract** — Zod schemas and inferred types for capabilities, app clients, models,
-  users, ledger, usage, audit, grants, health, and meta, used by both the browser and the BFF.
+- **Shared contract** — Zod schemas and inferred types for providers, provider models,
+  abilities, app-client routes, capabilities, app clients, models, users, ledger, usage,
+  audit, grants, health, and meta, used by both the browser and the BFF.
 - **Data layer** — typed fetch client, TanStack Query cache, query keys, mutations, and
   precise invalidation.
 - **Forms** — React Hook Form + Zod validation for capability edits; dialogs for kill switch,
@@ -62,14 +72,16 @@ routing, kill switches, model catalog, user ledger/usage, credit grants, and sys
 |---|---|
 | `/login` | Cloudflare Access fallback |
 | `/` | Overview |
-| `/capabilities` | Capability registry |
-| `/capabilities/:capabilityId` | Capability overview/configuration |
-| `/capabilities/:capabilityId/routing` | Provider routing |
+| `/abilities` | Five-ability catalog |
+| `/abilities/:abilityId` | Ability providers/models + legacy cost profiles |
+| `/capabilities` | Redirects to `/abilities` |
+| `/capabilities/:capabilityId` | Legacy capability cost/limits profile |
 | `/capabilities/:capabilityId/audit` | Capability audit |
 | `/app-clients` | App client list |
-| `/app-clients/:clientId` | App client capability/model matrix |
-| `/models` | Model catalog |
-| `/providers` | Provider connections and health |
+| `/app-clients/:clientId` | App client ability routes, audit, activity |
+| `/models` | Legacy app-picker catalog |
+| `/providers` | Provider cards, health, add provider |
+| `/providers/:providerId` | Provider credentials, models, health |
 | `/users` | UID lookup |
 | `/users/:uid/ledger` | Credit ledger |
 | `/users/:uid/usage` | Usage events |

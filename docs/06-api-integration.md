@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed; upstream fields marked **assumed** must be confirmed |
+| Status | Implemented; provider/ability routing is deployment-pending on the gateway |
 | Frontend boundary | BFF `/api/*` only |
-| Shared schemas | `shared/admin-api/schemas.ts` |
+| Shared schemas | `shared/admin-api/{providers,abilities,app-clients,capabilities,models}.ts` |
 | Backend analysis | [02-backend-contract-analysis.md](02-backend-contract-analysis.md) |
 
 ## 1. Principles
@@ -65,16 +65,32 @@ an app-owned login session.
 | GET | `/api/admin/users/:uid/activity` | `GET .../activity?limit=&cursor=&date=dd_mm_yyyy` | `{items,nextCursor}` |
 | POST | `/api/admin/users/:uid/credits/grant` | `POST .../credits/grant` | `CreditGrantResult` |
 | GET | `/api/admin/revenuecat/status` | `GET /internal/admin/revenuecat/status` | `RevenueCatStatus` (no secret) |
+| GET | `/api/admin/abilities` | `GET /internal/admin/abilities` | `{items: Ability[]}` |
 | GET | `/api/admin/providers` | `GET /internal/admin/providers` | `{items: ProviderStatus[]}` |
+| POST | `/api/admin/providers` | `POST /internal/admin/providers` | `Provider` (201) |
+| GET | `/api/admin/providers/:id` | `GET /internal/admin/providers/:id` | `Provider` |
+| PUT | `/api/admin/providers/:id` | `PUT /internal/admin/providers/:id` | `Provider` |
+| DELETE | `/api/admin/providers/:id` | `DELETE /internal/admin/providers/:id` | `{deleted}` |
 | POST | `/api/admin/providers/:id/check` | `POST .../providers/:id/check` | `ProviderStatus` |
+| GET | `/api/admin/providers/:id/models` | `GET .../providers/:id/models` | `{items: ProviderModel[]}` |
+| PUT | `/api/admin/providers/:id/models/:modelId` | `PUT .../models/:modelId` | `ProviderModel` |
+| DELETE | `/api/admin/providers/:id/models/:modelId` | `DELETE .../models/:modelId` | `{deleted}` |
+| PUT | `/api/admin/app-clients/:id/routes` | `PUT .../app-clients/:id/routes` | `AppClient` |
 
-`AppClient.capabilities` is the complete matrix, one row per registry capability:
-`{capabilityId, capabilityName, kind, modelId, enabled}`. A create/update body replaces the
-whole matrix; an enabled row must reference a model present in `capability_providers` for that
-capability. Unknown capabilities, duplicate rows, and unmodeled enabled rows return 422.
+`AppClient.routes` is the authoritative ability matrix, one row per ability:
+`{ability, abilityName, providerId, providerName, modelId, modelName, enabled}`. For an
+unrouted ability the provider/model fields are `null` and `enabled` is false. The legacy
+`capabilities` matrix remains on the payload as a rollout mirror. A create/update body may
+send `routes` (snake_case upstream) or `capabilities`; a supplied route set is authoritative
+and is mirrored into the legacy matrix in the same transaction. `PUT .../routes` replaces the
+complete set and accepts only complete enabled rows (max five); unknown abilities, duplicate
+abilities, and provider/model/ability mismatches return 422.
 `requireFirebaseUid` (gateway input `require_firebase_uid`) is part of the app-client
 create/update body. When true, `/v1` requires the app-asserted `X-Firebase-Uid` header;
 when false, the header is optional context.
+
+Metadata edits must include the current `routes` when the client has them; otherwise the
+gateway derives routes from the legacy matrix and may replace the operator's selection.
 
 Create and rotate responses include a one-time `clientKey` (40 lowercase hex). List/get return
 only `keyRotatedAt`; the plaintext key is never recoverable. The app authenticates
@@ -82,10 +98,19 @@ only `keyRotatedAt`; the plaintext key is never recoverable. The app authenticat
 keys with 401; an enabled client is still rejected for an unmapped capability with 403
 `CAPABILITY_NOT_IN_PLAN`. Rotation invalidates the previous key immediately.
 
-`ProviderStatus.models` is an array of `{id, displayName?, capability, default?}`.
-Capabilities are the deduplicated capability IDs derived from those models. The active
-`model` must exist in `models`; otherwise the gateway falls back to `default`, sets
-`modelValid: false`, reports `status: "misconfigured"`, and `check` does not probe it.
+**Provider list vs detail.** `GET /providers` returns `ProviderStatus` rows: `kind`,
+`configured`, `hasApiKey`, `apiKeyHint`, `apiKeyUpdatedAt`, health, and a compact
+`models: {id, displayName?, capability, default?}[]`. `GET /providers/:id` returns the full
+`Provider`: `enabled`, `baseUrl`, `config`, timestamps, and
+`models: {providerId, modelId, displayName, ability, enabled, config, costUnit, costCredits, costPer, sortOrder}[]`.
+The full payload never includes key material.
+
+The active `model` must exist in the status model list; otherwise the gateway falls back to
+`default`, sets `modelValid: false`, reports `status: "misconfigured"`, and `check` does
+not probe it. Provider create/update accepts `api_key` (write-only), `clear_api_key`, and
+camelCase fields converted to snake_case by the BFF. Omitting `api_key` keeps the existing
+key. A missing `PROVIDER_SECRET_KEY` returns 503 `SECRET_KEY_NOT_CONFIGURED`; a provider or
+model still referenced by routes returns 409 `PROVIDER_IN_USE`.
 
 **A1 (resolved 2026-10-23):** the gateway now exposes
 `GET /internal/admin/capabilities/{id}`. The BFF still lists and finds for the detail view so it
@@ -144,6 +169,57 @@ export interface Capability {
   providers: ProviderRoute[];
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
+}
+
+export type ProviderKind = "llm" | "tts" | "stt" | "embeddings" | "vector";
+
+export interface ProviderModel {
+  providerId: string;
+  modelId: string;
+  displayName: string;
+  ability: ProviderKind;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  costUnit: string;
+  costCredits: number;
+  costPer: number;
+  sortOrder: number;
+}
+
+export interface Provider {
+  id: string;
+  displayName: string;
+  kind: ProviderKind;
+  baseUrl: string;
+  enabled: boolean;
+  hasApiKey: boolean;
+  configured: boolean;
+  apiKeyHint: string | null;
+  apiKeyUpdatedAt: IsoDateTime | null;
+  credential: "configured" | "missing" | string;
+  config: Record<string, unknown>;
+  models: ProviderModel[];
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface Ability {
+  id: string;
+  displayName: string;
+  kind: "chat" | "tts" | "stt" | "embeddings" | "vector" | string;
+  sortOrder: number;
+  enabled: boolean;
+  models: ProviderModel[];
+}
+
+export interface AppClientRoute {
+  ability: string;
+  abilityName: string;
+  providerId: string | null;
+  providerName: string | null;
+  modelId: string | null;
+  modelName: string | null;
+  enabled: boolean;
 }
 
 export interface ModelCatalogEntry {
@@ -404,7 +480,7 @@ Request body (canonical, full representation of editable fields):
 - On success, refetch capability + audit + list.
 - Do not optimistically flip the switch.
 
-### 8.3 Providers PUT
+### 8.3 Legacy capability provider chain PUT
 
 ~~~json
 {
@@ -420,7 +496,66 @@ Request body (canonical, full representation of editable fields):
 - Atomic replace; no partial saves.
 - On success, refetch capability + audit.
 
-### 8.4 Model PUT
+### 8.4 Provider create/update
+
+```http
+POST /api/admin/providers
+Content-Type: application/json
+
+{
+  "displayName": "ElevenLabs",
+  "kind": "tts",
+  "baseUrl": "https://api.elevenlabs.io/v1",
+  "enabled": true,
+  "apiKey": "sk_...",
+  "config": {}
+}
+```
+
+The BFF converts to `display_name`, `base_url`, `api_key`; `apiKey` is never echoed.
+`PUT /api/admin/providers/:id` with no `apiKey` keeps the stored key. `clearApiKey: true`
+removes it. Both return the full `Provider` (no credential), 201 on create.
+
+### 8.5 Provider model upsert
+
+```http
+PUT /api/admin/providers/elevenlabs/models/eleven_turbo_v2_5
+Content-Type: application/json
+
+{
+  "displayName": "ElevenLabs Turbo v2.5",
+  "ability": "tts",
+  "enabled": true,
+  "config": { "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM" },
+  "costUnit": "characters",
+  "costCredits": 1,
+  "costPer": 1000,
+  "sortOrder": 10
+}
+```
+
+The model id is in the path and immutable. The ability must equal the provider kind; the
+gateway returns 422 `VALIDATION_FAILED` otherwise.
+
+### 8.6 App-client routes
+
+```http
+PUT /api/admin/app-clients/{id}/routes
+Content-Type: application/json
+
+{
+  "routes": [
+    { "ability": "llm", "providerId": "opencode", "modelId": "deepseek-v4.1-flash", "enabled": true },
+    { "ability": "tts", "providerId": "elevenlabs", "modelId": "eleven_turbo_v2_5", "enabled": true }
+  ]
+}
+```
+
+The BFF converts to `provider_id`/`model_id`. The complete set is replaced; omitted abilities
+are unrouted. The response is the updated `AppClient` with all five route rows (nulls for
+unrouted abilities) and the mirrored legacy matrix.
+
+### 8.7 Legacy app-picker model PUT
 
 ~~~json
 {
@@ -436,7 +571,7 @@ Request body (canonical, full representation of editable fields):
 - `id` is the path key; not editable after creation.
 - Upsert semantics; no delete.
 
-### 8.5 Credit grant
+### 8.8 Credit grant
 
 ~~~json
 { "amount": 30, "reason": "Support: duplicate charge on 2026-10-20", "requestId": "b1e..." }

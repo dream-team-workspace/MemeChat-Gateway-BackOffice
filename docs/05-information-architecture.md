@@ -14,9 +14,9 @@ The sidebar has three groups and a footer:
 ~~~text
 OPERATE
   Overview
-  Capabilities
+  Abilities
   App clients
-  Models
+  Models            ← legacy app-picker catalog
   Providers
 
 SUPPORT
@@ -33,9 +33,10 @@ The top bar carries the environment badge and theme toggle; identity and sign-ou
 Settings.
 
 - **Overview** is the landing route.
-- **Capabilities** is the primary operational surface.
-- **App clients** manages consumer-app identities, active capability grants, audit, and
-  activity.
+- **Abilities** is the primary routing surface (five abilities → provider → model).
+- **Providers** manages credentials, base URLs, model catalogs, and health.
+- **App clients** manages consumer-app identities, per-ability routes, audit, and activity.
+- **Models** remains the legacy app-picker catalog and is lower priority.
 - **Users** is support-focused: a signed-in directory with a compact ID/Email lookup at the
   top right.
 - **Operations** holds cache invalidation and environment/health details.
@@ -58,8 +59,9 @@ Settings.
 Breadcrumb examples:
 
 - `Overview`
-- `Capabilities / chat.premium`
-- `Capabilities / chat.premium / Audit`
+- `Abilities / Language model`
+- `Providers / OpenCode`
+- `App clients / MemeChat Android / Access`
 - `Users / <uid>`
 
 ## 3. Route catalog
@@ -67,15 +69,18 @@ Breadcrumb examples:
 | Route | Page | Auth | Primary data | Primary action |
 |---|---|---|---|---|
 | `/login` | Sign in | Public | Cloudflare Access identity | Continue with Cloudflare Access |
-| `/` | Overview | Required | Capabilities, models, health | Review incident surface |
-| `/capabilities` | Capability list | Required | `GET /capabilities` | Open a capability |
-| `/capabilities/:capabilityId` | Capability overview | Required | capability + providers | Save changes |
-| `/capabilities/:capabilityId/routing` | Provider routing | Required | capability providers | Replace chain |
+| `/` | Overview | Required | Abilities, providers, models, health | Review incident surface |
+| `/abilities` | Ability catalog | Required | `GET /api/admin/abilities` | Open an ability |
+| `/abilities/:abilityId` | Ability detail | Required | abilities + providers + capabilities | Manage availability |
+| `/capabilities` | Redirect | Required | — | Redirects to `/abilities` |
+| `/capabilities/:capabilityId` | Legacy cost/limits profile | Required | capability | Save cost/limits |
+| `/capabilities/:capabilityId/routing` | Redirect | Required | — | Redirects to the profile |
 | `/capabilities/:capabilityId/audit` | Audit history | Required | `GET .../audit` | Inspect a change |
 | `/app-clients` | App clients | Required | `GET /app-clients` | Add/open client |
-| `/app-clients/:clientId` | Client access, audit, activity | Required | client + capabilities + providers + dated audit/activity | Save grants, inspect audit |
-| `/models` | Model catalog | Required | `GET /models` | Add/edit model |
-| `/providers` | Provider connections | Required | provider status + capabilities | Check health |
+| `/app-clients/:clientId` | Access routes, audit, activity | Required | client + abilities + providers + dated audit/activity | Save routes, inspect audit |
+| `/models` | Legacy model catalog | Required | `GET /models` | Add/edit model |
+| `/providers` | Provider list | Required | provider status | Add/manage/check |
+| `/providers/:providerId` | Provider detail | Required | provider detail + health | Edit/key/models/check |
 | `/users` | User directory + lookup | Required | users directory | Find by ID/email |
 | `/users/:uid` | Redirect to ledger | Required | — | — |
 | `/users/:uid/ledger` | User ledger | Required | ledger | Inspect state |
@@ -86,9 +91,10 @@ Breadcrumb examples:
 | `/forbidden` | 403 | Required | session | Go back |
 | `*` | 404 | Public | none | Go home |
 
-All routes except `/login`, `/forbidden`, and the 404 are inside `AppShell`. Tabs are real
-nested routes, not local state: the capability tabs are `/routing` and `/audit`, and the user
-tabs are `/ledger` and `/usage`.
+All routes except `/login`, `/forbidden`, and the 404 are inside `AppShell`. The user tabs are
+real nested routes (`/ledger`, `/usage`, `/activity`); provider and app-client tabs are local
+state because the gateway has one detail payload. The legacy capability profile keeps
+`/capabilities/:id/audit` as a nested route.
 
 ## 4. Page specifications
 
@@ -134,92 +140,89 @@ client-side from the full lists (the admin API returns all capabilities/models/c
 States: loading skeletons per card; partial failure keeps other cards; gateway down shows a
 degraded banner and still allows reading cached data; no fake zeros.
 
-### 4.3 Capability list — `/capabilities`
+### 4.3 Abilities — `/abilities`
 
-**Purpose:** find a capability quickly and see its operational state.
+**Purpose:** show the five coarse abilities apps can call and which providers/models can
+serve them. Legacy capability rows remain available as cost/limits profiles.
 
-Layout: page header with "Capabilities", total count, refresh; toolbar with search, kind
-filter, status filter, clear; table.
+Layout: page header with refresh; a table with Ability (name + mono id), Kind, Available
+providers (name + model count), Profiles (legacy capability count), Status, and an open
+chevron. The route `/capabilities` redirects here.
 
-Columns: ID (mono, copy), Display name, Kind, Status (badge), Cost (e.g. "1 CRD / 500 chars"),
-Providers (count + primary), Revision, Updated.
+Behavior: read-only catalog. Provider/model creation lives on Providers; per-client selection
+lives on the app-client Access tab. Empty state points to Providers.
 
-Behavior:
+States: skeleton rows; error with retry; empty catalog note (migration 0009 not applied).
 
-- Search matches ID, display name, kind.
-- Filters live in the URL: `?q=&kind=&status=`.
-- Sort by ID, kind, status, revision, updated; default ID ascending.
-- Row click opens detail; row action menu has "View", "Audit", "Copy ID".
-- Disabled rows are clearly badged, not merely dimmed.
-- Refresh button refetches; "Updated 12s ago" is shown.
+### 4.4 Ability detail — `/abilities/:abilityId`
 
-States: skeleton rows; empty (no capabilities vs no filter matches); error with retry; stale
-data warning if refetch fails.
-
-### 4.4 Capability detail — `/capabilities/:capabilityId`
-
-**Purpose:** inspect and safely change one capability.
-
-Header: breadcrumb, ID, display name, status badge, revision, last updated, "View audit"
-link, overflow menu (copy ID, open audit).
-
-Tabs are nested URLs: the base page is the overview/configuration, routing lives at
-`/capabilities/:id/routing`, and audit at `/capabilities/:id/audit`. A tab switch is a route
-change, not local state.
+**Purpose:** explain availability and link the two configuration surfaces without duplicating
+editing.
 
 Sections:
 
-1. **Overview** — read-only summary: kind, streaming, reasoning, image, min app version,
-   cost formula, limits, fair use, provider count.
-2. **Configuration** — editable form:
-   - Identity: display name, kind (read-only after creation), streaming (select), flags.
-   - Commercial: cost unit, credits, per (integer > 0), with a live sentence: "1 credit per
-     500 characters."
-   - Limits: JSON editor with schema hints per kind (e.g. maxChars, maxSeconds, maxInputs).
-   - Fair use: JSON editor + common presets; explicit "off" state.
-   - App gating: min app version.
-3. **Routing** — ordered provider chain editor (see 4.5).
-4. **Danger zone** — kill switch (see 4.6).
+1. **Available providers and models** — grouped by provider, with key/health badge, model
+   id/name, enabled state, and cost formula. Each provider links to `/providers/:id`. Only
+   enabled models appear in new routes; disabled models stay visible for migration.
+2. **Cost and limits profiles** — matching legacy capability rows (`chat.*` → llm,
+   `embeddings.*` → embeddings, etc.) with cost, limit count, status, and an "Open cost
+   profile" link to `/capabilities/:capabilityId`. Billing remains on these profiles.
+3. **Legacy provider chain** — read-only. Runtime resolution now uses the app-client routes;
+   the ordered capability chain is shown only for migration/debugging.
 
-Footer: sticky save bar appears when dirty: "Unsaved changes", Discard, Review changes.
-Review dialog shows a field-by-field diff, revision, actor, and impact. Save sends a full PUT.
+States: provider names fall back to ids if the registry row is missing; empty models; empty
+profiles; error with retry.
 
-States:
+### 4.5 Providers — `/providers` and `/providers/:providerId`
 
-- Loading skeleton.
-- 404: capability not found, link back.
-- 409: someone else changed it; show "Reload latest" and preserve the user's draft in a
-  collapsible panel (do not silently overwrite).
-- 422: inline field errors from `details`; scroll to first error.
-- Success: toast + revision update + audit invalidation.
+**Purpose:** make provider credentials and model catalogs operator-managed without a gateway
+redeploy. The key is always write-only.
 
-Rules:
+Index: page header with Add provider; search and kind filters (All, Language, Speech,
+Embeddings, Vector); responsive card grid. Each card shows name/kind, key or health badge,
+base URL, key hint or "Key missing", model count, ability chips, last check, Manage and
+Check health. Add opens a dialog; Manage opens the detail page.
 
-- Enabled is **not** edited in this form; use the kill switch to keep audit semantics clear.
-- ID and kind are immutable in the UI; the API may allow an upsert, but the console does not
-  create capabilities in v1.
-- Unknown top-level fields are not displayed; nested JSON unknown keys are preserved.
+Create/edit dialog fields: display name, optional id (slugified by the gateway when blank),
+kind, base URL, enabled, API key (create only), advanced config JSON. The key field is a
+password input with a show/hide toggle, `autocomplete="new-password"`, and is cleared on
+close. Edit never prefills a key.
 
-### 4.5 Provider routing — `/capabilities/:capabilityId/routing`
+Detail tabs: Overview, Models, Health.
 
-**Purpose:** change which provider/model serves a capability and in what order.
+- **Overview** — credential card (`Key •••• {hint}`, updated time, Set/Replace/Remove key),
+  connection card (base URL, config JSON, timestamps), and a model-catalog summary.
+- **Models** — table of model id/name, ability, cost, status; Add/Edit/Remove. The model ID
+  is immutable after creation; ability is fixed to the provider kind; config is JSON with
+  per-kind hints. Removing a referenced model returns 409 and keeps the dialog open.
+- **Health** — persisted last check, latency, detail, checked-by, and a safe probe. Probing
+  is disabled until the provider is configured and has a model.
 
-Layout: ordered list of route cards. Each card: priority, provider, model, enabled switch,
-config JSON (collapsible), remove. Add route button. Drag handle + up/down buttons.
+Key rules: replace/remove are destructive dialogs; remove requires an explicit checkbox.
+The response never contains a plaintext key. `PROVIDER_SECRET_KEY` missing returns 503
+`SECRET_KEY_NOT_CONFIGURED` with a copyable deploy hint. Deleting a provider referenced by
+routes returns 409 `PROVIDER_IN_USE`; do not close the dialog.
 
-Behavior:
+States: loading skeletons; empty registry with Add; key missing warning (Save still allowed
+elsewhere); disabled provider; no models; 404 after concurrent deletion; 409/422/503 inline.
 
-- Priorities are normalized to 1..n on save.
-- Provider is free text with suggestions from existing chains; model is free text.
-- At least one enabled route is required; removing the last enabled route is blocked with an
-  explanation.
-- Reorder is keyboard accessible (up/down buttons), not drag-only.
-- Save uses the atomic providers PUT; it does not call per-route endpoints.
-- Confirmation shows the old chain → new chain.
+### 4.5.1 App-client Access — `/app-clients/:clientId` (Access tab)
 
-States: empty chain (warning), invalid JSON, unsaved changes, 422 with route index, success
-with audit link.
+**Purpose:** choose one provider and model per ability. Rows appear in fixed order: llm, tts,
+stt, embeddings, vector. Each row has Provider and Model selects, a Configured/Not routed
+badge, and Remove. Provider choices are filtered by provider kind; model choices by provider
++ ability and enabled (an already-selected disabled model stays visible as a warning).
 
+Behavior: changing provider resets the model to its first enabled model; Remove clears the
+row; Save sends only complete rows to `PUT /api/admin/app-clients/:id/routes`; dirty state
+compares the five `{ability, providerId, modelId}` tuples. A provider with a missing key shows
+an amber inline warning but does not block Save. On success the client query is replaced with
+the response and the baseline resets. 422 maps to the affected row; 409 offers Reload.
+If the client has no `routes` field (older gateway) or the rollout flag is off, show a
+read-only legacy capability matrix and disable the editor.
+
+Metadata edits preserve the current routes; the form sends them because the gateway treats a
+supplied route set as authoritative. The client list shows `n/5 abilities routed`.
 ### 4.6 Kill switch (within detail)
 
 **Purpose:** disable a capability immediately during an incident.
@@ -358,10 +361,9 @@ out), About (version, commit, docs link). No secrets, no admin config, no featur
 
 ### 5.1 Incident: disable a capability
 
-1. Operator opens **Capabilities**.
-2. Searches the capability ID.
-3. Opens the row.
-4. Clicks **Disable** in the danger zone.
+1. Operator opens **Abilities**, then the ability page.
+2. Opens a matching legacy cost profile.
+3. Clicks **Disable** in the danger zone.
 5. Types the ID, enters a reason, confirms.
 6. UI shows pending, then success + audit link.
 
@@ -370,7 +372,7 @@ open with request ID; network timeout → explicit retry, no duplicate toggle as
 
 ### 5.2 Change cost
 
-1. Open capability → Configuration.
+1. Open Abilities → ability → cost profile.
 2. Edit cost credits/per; the sentence preview updates.
 3. Review changes → diff.
 4. Confirm → PUT → revision increments.
@@ -379,14 +381,24 @@ open with request ID; network timeout → explicit retry, no duplicate toggle as
 Guard: if the capability changed since load, a 409/revision mismatch shows "Reload latest";
 the draft remains visible and can be copied, but cannot be saved blindly.
 
-### 5.3 Reorder providers
+### 5.3 Route an ability to a provider/model
 
-1. Open capability → Routing.
-2. Move routes with up/down; toggle enabled; edit model/config.
-3. Review old → new chain; confirm.
-4. PUT providers; refetch; audit link.
+1. Open the app client → Access.
+2. Pick a provider for an ability; the model resets to its first enabled model.
+3. Pick the model; repeat for other abilities, or Remove a row.
+4. Save routes; the gateway returns the updated client and mirrors the legacy matrix.
 
-Guard: empty chain, no enabled route, invalid JSON, duplicate priorities (normalized).
+Guard: incomplete rows block Save; missing provider keys warn but do not block; disabled
+models are excluded; 422 highlights the affected row; 409 offers Reload.
+
+### 5.3.1 Rotate a provider key
+
+1. Open Providers → provider.
+2. Replace key in the credential card; paste and save.
+3. The gateway stores ciphertext and returns only a new hint.
+
+Guard: never render the key; if `PROVIDER_SECRET_KEY` is missing, the gateway returns 503 and
+the dialog explains the deploy requirement.
 
 ### 5.4 Investigate a charge
 
@@ -411,7 +423,7 @@ warning before redirect when a form is dirty (best effort).
 ### 6.1 Keyboard
 
 - `Cmd/Ctrl + K` — command palette (routes + loaded capabilities).
-- `g o` / `g c` / `g m` / `g u` — go to Overview, Capabilities, Models, Users.
+- `g o` / `g a` / `g m` / `g u` — go to Overview, Abilities, Models, Users.
 - `?` — keyboard help.
 - `Esc` — close dialog/sheet; if dirty, confirm discard.
 - `Cmd/Ctrl + Enter` — submit the active form when valid (not for destructive dialogs).
@@ -464,12 +476,12 @@ work at 360px, even if the tables scroll horizontally.
 
 | Pattern | Example |
 |---|---|
-| Page title | "Capabilities" |
-| Page subtitle | "Costs, limits, and routing for every gateway capability." |
-| Empty list | "No capabilities match these filters." + Clear filters |
-| Empty detail | "This capability has no provider routes." + Add route |
-| Error | "Couldn't load capabilities." + "Retry" + request ID |
-| Success | "Capability updated." + "View audit" |
+| Page title | "Abilities" / "Providers" |
+| Page subtitle | "The five coarse abilities apps can call, and the providers that can serve them." |
+| Empty list | "No providers registered." + Add provider |
+| Empty detail | "No models serve this ability." + Open providers |
+| Error | "Couldn't load providers." + "Retry" + request ID |
+| Success | "Routes saved." / "Key replaced." |
 | Destructive | "Disable chat.premium?" + impact + reason + type ID |
 | Pending | "Disabling…", "Saving…", "Granting…" |
 | Stale | "Showing data from 2 minutes ago. Refresh." |

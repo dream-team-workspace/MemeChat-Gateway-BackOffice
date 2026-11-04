@@ -1,6 +1,6 @@
 # Gateway changes requested by the BackOffice
 
-**Date:** 2026-10-25 · **Updated:** 2026-10-31
+**Date:** 2026-10-25 · **Updated:** 2026-11-04
 **Audience:** MemeChat Gateway backend team (repo: `dream-team-workspace/MemeChat-Gateway`)
 **Status:** Implemented, deployment pending. User activity is now file-backed
 (`MemeChat-Gateway/docs/20-file-user-activity.md`) instead of a high-volume SQL writer.
@@ -9,6 +9,70 @@ The remaining data-source gap is §1 verified email/RevenueCat tier.
 > Hand this file to the gateway team unchanged. §0 is the work list, §6 is the exact JSON
 > contract the console validates, §8 is the acceptance checklist, and §9 is the list of
 > product/privacy decisions I still need answered.
+
+## Ability → provider → model routing (2026-11-04)
+
+The gateway routing branch (`MemeChat-Gateway/docs/21-ability-provider-model-routing.md`,
+migration `0009_ability_provider_routing.sql`) is **local and uncommitted** at the time of
+this console change. The BackOffice consumes it; production remains on the old build until
+both are deployed.
+
+| Surface | Gateway status | Console status |
+|---|---|---|
+| `abilities` + `provider_models` + `app_client_routes` | Implemented locally; deployment pending | Ability catalog + detail, route editor |
+| `POST/PUT/DELETE /internal/admin/providers` | Implemented locally | Add/edit/delete provider |
+| Write-only `api_key` / `clear_api_key`, `apiKeyHint` | Implemented locally; AES-GCM + `PROVIDER_SECRET_KEY` | Replace/remove key dialogs; never prefetch key |
+| `GET/PUT/DELETE .../providers/:id/models` | Implemented locally | Model tab and editor |
+| `GET /internal/admin/abilities` | Implemented locally | `/abilities` and `/abilities/:id` |
+| `PUT /internal/admin/app-clients/:id/routes` | Implemented locally; mirrors legacy matrix | Access tab, route-only save |
+| Redis L2 client cache | Implemented locally (`REDIS_URL`, optional in-memory fallback) | No special UI; only Operations may surface cache status |
+
+Contract details the console depends on:
+
+- List provider rows are `ProviderStatus` (compact models `{id, displayName?, capability,
+  default?}`, key hint, health). Detail/create/update return the full `Provider` with
+  `models[]` (`ability`, `enabled`, `config`, cost fields).
+- A model's ability must equal its provider kind; a route's provider/model pair must exist in
+  `provider_models` for that ability. The console mirrors these filters and still maps 422.
+- `provider_models` and `app_client_routes` restrict deletion; the gateway returns
+  `409 PROVIDER_IN_USE`. The body does **not** list referencing clients, so the console shows
+  a reassign instruction rather than inventing a list.
+- `ProviderStatus` does not expose `enabled`; only the detail payload does. Cards therefore
+  show key/health state and the detail page shows Enabled/Disabled.
+- `GET /providers/:id` never returns the plaintext key; only `apiKeyHint` (last four),
+  `hasApiKey`, `apiKeyUpdatedAt`, and `credential`.
+- Metadata edits send the current `routes` so the gateway does not derive routes from the
+  legacy capability mirror. An empty route set is sent only when the operator removed them.
+
+Deployment order when the gateway branch lands:
+
+1. Apply migration `0009` (additive, idempotent) before starting the new gateway.
+2. Set `PROVIDER_SECRET_KEY` (32-byte base64 or 64 hex) if operators will save keys.
+3. Deploy the gateway; verify `GET /internal/admin/abilities` and `GET /internal/admin/providers`.
+4. Deploy this BackOffice `development` build; verify provider list/detail and one route save.
+
+Open gateway follow-ups: include referencing app clients in the 409 body; expose `enabled` on
+`ProviderStatus`; add provider-level audit read endpoint if the console should show history;
+define key-version rotation before changing `PROVIDER_SECRET_KEY`.
+
+Local verification on 2026-11-04:
+
+- ElevenLabs key: `GET /v1/voices?page_size=1` returned HTTP 200 (21 voices); the gateway
+  probe returned `healthy` in 438 ms and the provider shows `…298d`.
+- DeepLake key: the token is scoped to the `default` workspace in org
+  `7648dbe2-8b33-48ac-a037-1e9012c0e1c0`; `POST /workspaces/default/tables/query` with
+  `SELECT 1` returned HTTP 200. The local provider config was corrected from the seeded
+  `memechat` workspace to `default`; the probe returned `healthy` and the provider shows
+  `…Rjp4`.
+- Metadata-only provider update initially cleared `api_key_hint` and
+  `api_key_updated_at` while keeping the ciphertext. Fixed in the gateway working tree
+  (`internal/providers/store.go`) by carrying the scanned hint/timestamp forward; the
+  metadata retry now preserves both. This fix is local and needs to be committed/deployed
+  with the routing branch.
+- Live BackOffice route save was exercised on a real app client (TTS route added, then
+  removed); the route count returned to 3/5. A metadata-only client edit preserved the
+  three routes.
+- No plaintext key appeared in an admin response, the BFF response, or the browser.
 
 ## Implementation status — verified 2026-10-26
 

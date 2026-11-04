@@ -109,9 +109,11 @@ packages or individual capability kinds.
 
 | Gateway/admin surface | Console domain | Subfeatures / routes |
 |---|---|---|
-| `capabilities`, `capability_providers`, `capability_audit` | `features/capabilities` | registry, configuration, routing, audit |
-| `app_clients`, `app_client_capabilities` | `features/app-clients` | client list, capability/model matrix |
-| `models` | `features/models` | catalog list, model editor |
+| `providers`, `provider_models`, `provider_audit` | `features/providers` | provider CRUD, keys, model catalog, health |
+| `abilities` + `provider_models` | `features/abilities` | ability catalog, availability, legacy profile links |
+| `capabilities`, `capability_providers`, `capability_audit` | `features/capabilities` | legacy cost/limits profiles, kill switch, audit |
+| `app_clients`, `app_client_routes`, `app_client_capabilities` | `features/app-clients` | client list, ability route editor, audit, activity |
+| `models` | `features/models` | legacy app-picker catalog and editor |
 | `account`, `credit_ledger`, `usage_events`, credit grant | `features/users` | lookup, ledger, usage, grant |
 | cache invalidation, health, future jobs | `features/operations` | health, cache, jobs |
 | No direct backend endpoint | `features/overview` | composition of other domains |
@@ -121,14 +123,15 @@ packages or individual capability kinds.
 
 Rules:
 
-1. **One domain per admin resource group or operator journey.** The target is seven product
-   domains plus platform auth; do not create a domain per endpoint.
-2. **A capability kind is data, not a feature.** New kinds must render through the existing
-   registry/form renderer. Creating `features/chat`, `features/tts`, or
+1. **One domain per admin resource group or operator journey.** The product domains are
+   overview, providers, abilities, capabilities (legacy profiles), app-clients, models, users,
+   operations, and settings; do not create a domain per endpoint.
+2. **An ability kind is data, not a feature.** New kinds must render through the existing
+   ability/provider registry. Creating `features/chat`, `features/tts`, or
    `features/embeddings` multiplies UI and defeats the dynamic registry.
-3. **Provider routing and audit stay inside capabilities.** They are part of the same
-   aggregate and the admin API exposes them under `/capabilities/{id}`. Promote audit to a
-   domain only if the backend adds a global audit feed.
+3. **Providers and abilities are first-class domains.** Provider credentials/model catalogs
+   and the ability catalog have their own admin resources. The legacy ordered
+   `capability_providers` chain stays read-only under abilities; do not add a second editor.
 4. **Ledger, usage, and grants stay inside users.** They share the UID lookup journey and the
    `/users/{uid}` resource group.
 5. **Jobs live under operations but use a separate BFF boundary.** The UI can share the domain;
@@ -138,9 +141,10 @@ Rules:
 7. **Auth is platform infrastructure, not a product domain.** Access identity, the typed
    API client, and the Query client live under `platform/`, not `features/`.
 
-A useful scale test: adding a new capability kind or provider should require **zero new
-top-level domains**. A global audit feed or aggregate stats endpoint would justify promoting a
-subfeature to a domain; the user directory stays inside `features/users`.
+A useful scale test: adding another provider or model should require **zero new top-level
+domains** — it is registry data. A new ability kind also stays in the shared ability catalog.
+A global audit feed or aggregate stats endpoint would justify promoting a subfeature to a
+domain; the user directory stays inside `features/users`.
 
 ## 4. Repository layout (target)
 
@@ -447,12 +451,27 @@ GET    /api/health
 GET    /api/meta
 # Access login/logout/get-identity are edge routes, not BFF routes.
 
+GET    /api/admin/abilities
+GET    /api/admin/providers
+POST   /api/admin/providers
+GET    /api/admin/providers/:id
+PUT    /api/admin/providers/:id
+DELETE /api/admin/providers/:id
+POST   /api/admin/providers/:id/check
+GET    /api/admin/providers/:id/models
+PUT    /api/admin/providers/:id/models/:modelId
+DELETE /api/admin/providers/:id/models/:modelId
 GET    /api/admin/capabilities
 GET    /api/admin/capabilities/:id
 PUT    /api/admin/capabilities/:id
 POST   /api/admin/capabilities/:id/toggle
-PUT    /api/admin/capabilities/:id/providers
+PUT    /api/admin/capabilities/:id/providers   # legacy read/write retained
 GET    /api/admin/capabilities/:id/audit
+GET    /api/admin/app-clients
+POST   /api/admin/app-clients
+GET    /api/admin/app-clients/:id
+PUT    /api/admin/app-clients/:id
+PUT    /api/admin/app-clients/:id/routes
 GET    /api/admin/models
 PUT    /api/admin/models/:id
 POST   /api/admin/cache/invalidate
@@ -464,10 +483,10 @@ POST   /api/admin/users/:uid/credits/grant
 There is intentionally **no** `/api/admin/*` catch-all. Each route is registered explicitly
 with its method, a Zod body/query schema, and a mapped upstream call.
 
-The BFF source mirrors the same domains: `server/src/routes/{capabilities,models,users,operations}.ts`
-and `server/src/gateway/mappers/{capabilities,models,users}.ts`. Access JWT verification lives
-in `server/src/auth/`, not in a route module. Avoid a single `admin.ts` monolith; it becomes
-the new layer-first bottleneck as the API grows.
+The BFF source mirrors the same domains: `server/src/routes/{abilities,providers,app-clients,capabilities,models,users,operations}.ts`
+and `server/src/gateway/mappers.ts`. Access JWT verification lives in `server/src/auth/`, not
+in a route module. Avoid a single `admin.ts` monolith; it becomes the new layer-first
+bottleneck as the API grows.
 
 ### 6.2 Session model
 
@@ -558,7 +577,7 @@ retry initiated by the user.
 
 | State kind | Tool | Examples |
 |---|---|---|
-| Server state | TanStack Query | capabilities, models, ledger, usage, audit, session |
+| Server state | TanStack Query | providers, abilities, app clients/routes, capabilities, models, ledger, usage, audit, session |
 | URL state | TanStack Router search params + Zod | filters, search, tabs, cursor |
 | Form state | React Hook Form + Zod | capability edit, model edit, grant |
 | Ephemeral UI | `useState`/`useReducer` | dialog open, selected row, copy state |
@@ -574,10 +593,15 @@ The route tree follows the operator domains and uses real URLs for tabs:
 ~~~text
 /login
 /
-/capabilities
-/capabilities/:capabilityId
-/capabilities/:capabilityId/routing
+/abilities
+/abilities/:abilityId
+/capabilities                 # redirects to /abilities
+/capabilities/:capabilityId   # legacy cost/limits profile
 /capabilities/:capabilityId/audit
+/providers
+/providers/:providerId
+/app-clients
+/app-clients/:clientId
 /models
 /users
 /users/:uid/ledger
@@ -645,8 +669,9 @@ endpoint or fall back to mock data.
 | Change | Where it goes |
 |---|---|
 | New capability kind (`chat`, `tts`, `stt`, `embeddings`, future kind) | No new domain. Add a field renderer/help entry in `features/capabilities/forms` and let the registry drive it. |
-| New provider or model in a capability chain | `features/capabilities/components/routing`; no new domain. |
-| New provider/model catalog behavior | `features/models`. |
+| New provider or model in the registry | `features/providers`; no new domain. |
+| New ability kind | `features/abilities` + provider catalog data; no new domain. |
+| Legacy capability chain | `features/abilities` read-only view; `features/capabilities` keeps profiles/audit. |
 | Ledger/usage/grant addition | `features/users` subfeature. |
 | Cache invalidation, health, ops job | `features/operations`; jobs use a separate BFF secret. |
 | Global audit feed | Promote `capabilities/audit` to `features/audit` if the backend adds a global route. |

@@ -7,7 +7,7 @@
 | Phase | 3 |
 | Owner | Frontend + BFF |
 | Depends on | FR-009 |
-| Source | [IA §4.11](../05-information-architecture.md), [API §8.5](../06-api-integration.md) |
+| Source | [IA §4.11](../05-information-architecture.md), [API §8.8](../06-api-integration.md) |
 
 ## Intent
 
@@ -70,7 +70,7 @@ Out of scope:
 
 ## Data and API
 
-See [API §8.5](../06-api-integration.md).
+See [API §8.8](../06-api-integration.md).
 
 ~~~ts
 interface CreditGrantInput {
@@ -134,5 +134,5 @@ backend uses different names, the BFF maps them.
 
 ## Traceability
 
-[IA §4.11](../05-information-architecture.md) · [API §8.5](../06-api-integration.md) ·
+[IA §4.11](../05-information-architecture.md) · [API §8.8](../06-api-integration.md) ·
 [Security §9](../07-security-model.md) · [E2E E13/E14](../09-testing-strategy.md)

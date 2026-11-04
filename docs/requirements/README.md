@@ -21,10 +21,10 @@ notes pass.
 |---|---|---|---|---|---|
 | [FR-001](FR-001-operator-authentication.md) | Operator authentication and session | Must | 1 | — | Proposed |
 | [FR-002](FR-002-secure-admin-api-gateway.md) | Secure admin API gateway (BFF) | Must | 1 | FR-001 | Proposed |
-| [FR-003](FR-003-capability-registry-overview.md) | Capability registry overview | Must | 2 | FR-002 | Proposed |
+| [FR-003](FR-003-capability-registry-overview.md) | Capability registry overview (legacy profiles) | Must | 2 | FR-002 | Superseded for navigation by FR-022 |
 | [FR-004](FR-004-capability-configuration-editing.md) | Capability configuration editing | Must | 2 | FR-003 | Proposed |
 | [FR-005](FR-005-capability-kill-switch.md) | Capability kill switch | Must | 2 | FR-003 | Proposed |
-| [FR-006](FR-006-provider-routing-chain.md) | Provider routing chain | Must | 2 | FR-003 | Proposed |
+| [FR-006](FR-006-provider-routing-chain.md) | Provider routing chain (legacy) | Must | 2 | FR-003 | Superseded by FR-022 |
 | [FR-007](FR-007-capability-audit-history.md) | Capability audit history | Must | 2 | FR-003 | Proposed |
 | [FR-008](FR-008-model-catalog-management.md) | Model catalog management | Must | 2 | FR-002 | Proposed |
 | [FR-009](FR-009-user-ledger-inspection.md) | User ledger inspection | Must | 3 | FR-002 | Proposed |
@@ -39,6 +39,8 @@ notes pass.
 | [FR-018](FR-018-user-directory-and-tier.md) | User directory, email, and tier | Must | 3 | FR-002, gateway | In progress |
 | [FR-019](FR-019-app-client-access-and-audit.md) | App client identity, access, and audit | Must | 2 | FR-002, gateway | In progress |
 | [FR-020](FR-020-provider-health-persistence.md) | Provider health persistence | Should | 3 | FR-002, gateway | Implemented |
+| [FR-021](FR-021-provider-registry-and-keys.md) | Provider registry, credentials, and models | Must | 2 | FR-002, gateway | Implemented (deploy pending) |
+| [FR-022](FR-022-ability-routes.md) | Ability catalog and app-client routes | Must | 2 | FR-002, FR-021 | Implemented (deploy pending) |
 
 ## Non-functional requirements
 
@@ -70,10 +72,10 @@ notes pass.
 |---|---|---|---|
 | FR-001 | /login | BFF /api/auth/* | BFF auth tests, E1/E2 |
 | FR-002 | all | BFF /api/admin/* | BFF integration suite |
-| FR-003 | /capabilities | GET /capabilities | component + E4 |
+| FR-003 | /abilities/:id profiles | legacy capability rows | component |
 | FR-004 | /capabilities/:id | PUT /capabilities/{id} | component + E5/E6 |
 | FR-005 | /capabilities/:id | POST .../toggle | E2E E7/E8 |
-| FR-006 | /capabilities/:id | PUT .../providers | E2E E9 |
+| FR-006 | /capabilities/:id | PUT .../providers (legacy) | Read-only chain |
 | FR-007 | /capabilities/:id/audit | GET .../audit | component + E7 |
 | FR-008 | /models | GET/PUT models | E2E E10 |
 | FR-009 | /users/:uid | GET .../ledger | E2E E11 |
@@ -88,6 +90,8 @@ notes pass.
 | FR-018 | /users | GET /api/admin/users | Live directory; email/tier write pending |
 | FR-019 | /app-clients/:id | SHA-1, audit, activity | Live SHA/audit; file-backed activity ready, gateway deploy pending |
 | FR-020 | /providers | lastCheck | Live; verified across restart |
+| FR-021 | /providers | provider CRUD, keys, models | BFF tests + browser |
+| FR-022 | /abilities, /app-clients/:id | abilities, routes PUT | Unit/BFF + browser |
 
 ## Changing a requirement
 
