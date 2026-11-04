@@ -90,6 +90,7 @@ export type ProviderHealth = z.infer<typeof providerHealthSchema>;
 export const providerStatusSchema = z.object({
   id: z.string(),
   displayName: z.string(),
+  kind: z.enum(["llm", "tts", "stt", "embeddings", "vector"]).optional(),
   role: z.string(),
   capabilities: z.array(z.string()).optional(),
   models: z.array(providerModelSchema).optional(),
@@ -100,6 +101,9 @@ export const providerStatusSchema = z.object({
   limits: z.record(z.string(), z.unknown()).optional(),
   credential: z.string(),
   configured: z.boolean(),
+  hasApiKey: z.boolean().optional(),
+  apiKeyHint: z.string().nullable().optional(),
+  apiKeyUpdatedAt: isoDateTimeSchema.nullable().optional(),
   status: providerStateSchema,
   detail: z.string(),
   latencyMs: z.number().int().nullable(),
