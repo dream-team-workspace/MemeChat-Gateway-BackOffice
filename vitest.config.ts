@@ -1,9 +1,16 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@shared": fileURLToPath(new URL("./shared", import.meta.url)),
+    },
+  },
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "shared/**/*.test.ts"],
+    include: ["server/**/*.test.ts", "shared/**/*.test.ts", "src/**/*.test.ts"],
     restoreMocks: true,
     env: {
       NODE_ENV: "test",
