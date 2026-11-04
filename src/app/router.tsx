@@ -19,7 +19,7 @@ import {
 import { ModelsPage } from "@/features/models";
 import { OperationsPage } from "@/features/operations";
 import { OverviewPage } from "@/features/overview";
-import { ProvidersPage } from "@/features/providers";
+import { ProviderDetailPage, ProvidersPage } from "@/features/providers";
 import { SettingsPage } from "@/features/settings";
 import {
   UserActivityPage,
@@ -118,6 +118,12 @@ const providersRoute = createRoute({
   component: ProvidersPage,
 });
 
+const providerDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/providers/$providerId",
+  component: ProviderDetailPage,
+});
+
 const usersRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/users",
@@ -185,6 +191,7 @@ const routeTree = rootRoute.addChildren([
     appClientRoute,
     modelsRoute,
     providersRoute,
+    providerDetailRoute,
     usersRoute,
     userRoute.addChildren([
       userIndexRoute,
