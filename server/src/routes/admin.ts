@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { authMiddleware } from "../auth/access.js";
 import type { AppEnv } from "../types.js";
+import { abilities } from "./abilities.js";
 import { appClients } from "./app-clients.js";
 import { capabilities } from "./capabilities.js";
 import { models } from "./models.js";
@@ -13,6 +14,7 @@ import { users } from "./users.js";
 const admin = new Hono<AppEnv>();
 
 admin.use("*", authMiddleware);
+admin.route("/abilities", abilities);
 admin.route("/app-clients", appClients);
 admin.route("/capabilities", capabilities);
 admin.route("/models", models);

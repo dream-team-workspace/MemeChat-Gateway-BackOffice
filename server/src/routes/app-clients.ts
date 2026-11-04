@@ -8,6 +8,7 @@ import {
   appClientDeleteSchema,
   appClientInputSchema,
   appClientListSchema,
+  appClientRoutesInputSchema,
   appClientSchema,
 } from "../../../shared/admin-api/index.js";
 import { adminFetch } from "../gateway/live.js";
@@ -47,6 +48,22 @@ appClients.put("/:id", async (c) => {
   const input = await jsonBody(c, appClientInputSchema);
   const raw = await adminFetch(
     "/internal/admin/app-clients/" + encodeURIComponent(c.req.param("id")),
+    c.get("actor"),
+    {
+      method: "PUT",
+      body: toApiBody(input),
+      requestId: c.get("requestId"),
+    },
+  );
+  return c.json(appClientSchema.parse(camelize(raw)));
+});
+
+appClients.put("/:id/routes", async (c) => {
+  const input = await jsonBody(c, appClientRoutesInputSchema);
+  const raw = await adminFetch(
+    "/internal/admin/app-clients/" +
+      encodeURIComponent(c.req.param("id")) +
+      "/routes",
     c.get("actor"),
     {
       method: "PUT",
