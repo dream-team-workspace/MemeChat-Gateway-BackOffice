@@ -3,20 +3,24 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  KeyRound,
   Pencil,
   Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react";
 
-import { abilityLabels, type ProviderCatalogModel } from "@shared/admin-api";
+import {
+  abilityLabels,
+  type ProviderCatalogModel,
+  type ProviderUsageRef,
+} from "@shared/admin-api";
 
 import { EmptyState, ErrorState, LoadingRows } from "@/components/common/async-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
+import { Tabs } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -25,9 +29,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ProviderCredentialCard } from "@/features/providers/components/provider-credential-card";
 import { ProviderFormDialog } from "@/features/providers/components/provider-form-dialog";
 import { ProviderKeyDialog } from "@/features/providers/components/provider-key-dialog";
 import { ProviderModelDialog } from "@/features/providers/components/provider-model-dialog";
+import { ProviderSecretHelpDialog } from "@/features/providers/components/provider-secret-help-dialog";
+import { ProviderUsageList } from "@/features/providers/components/provider-usage-list";
+import { providerInUseClients } from "@/features/providers/lib/provider-errors";
 import { providerDisplayState, providerKindLabel } from "@/features/providers/lib/provider-status";
 import {
   useCheckProvider,
@@ -71,8 +79,9 @@ export function ProviderDetailPage() {
   const [editingModel, setEditingModel] = useState<ProviderCatalogModel | null>(null);
   const [deletingModel, setDeletingModel] = useState<ProviderCatalogModel | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [modelError, setModelError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
+  const [modelError, setModelError] = useState<unknown>(null);
+  const [secretHelpOpen, setSecretHelpOpen] = useState(false);
 
   if (detail.isLoading) {
     return (
@@ -98,11 +107,18 @@ export function ProviderDetailPage() {
   const status = list.data?.items.find((item) => item.id === provider.id);
   const display = status
     ? providerDisplayState(status)
-    : provider.configured
-      ? { label: "Configured", variant: "success" as const }
-      : { label: "Key missing", variant: "warning" as const };
+    : provider.credentialState === "unreadable"
+      ? { label: "Credential error", variant: "destructive" as const }
+      : provider.credentialState === "missing"
+        ? { label: "Key missing", variant: "warning" as const }
+        : !provider.enabled
+          ? { label: "Disabled", variant: "outline" as const }
+          : { label: "Configured", variant: "success" as const };
   const lastCheck = status?.lastCheck ?? null;
-  const canCheck = provider.configured && provider.models.length > 0;
+  const canCheck =
+    provider.credentialState === "ready" && provider.enabled && provider.models.length > 0;
+  const deleteReferences: ProviderUsageRef[] = providerInUseClients(deleteError);
+  const modelReferences: ProviderUsageRef[] = providerInUseClients(modelError);
 
   function startCreateModel() {
     setEditingModel(null);
@@ -120,7 +136,7 @@ export function ProviderDetailPage() {
     setDeleteError(null);
     remove.mutate(provider.id, {
       onSuccess: () => void navigate({ to: "/providers" }),
-      onError: (error) => setDeleteError(getErrorMessage(error)),
+      onError: (error) => setDeleteError(error),
     });
   }
 
@@ -132,7 +148,7 @@ export function ProviderDetailPage() {
         setDeletingModel(null);
         setNotice("Model removed");
       },
-      onError: (error) => setModelError(getErrorMessage(error)),
+      onError: (error) => setModelError(error),
     });
   }
 
@@ -192,31 +208,20 @@ export function ProviderDetailPage() {
         </div>
       </div>
 
-      <nav role="tablist" aria-label="Provider sections" className="mt-2 flex gap-1 border-b border-border">
-        {tabs.map((item) => {
-          const selected = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                selected
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+      <Tabs.Root
+        value={tab}
+        onValueChange={(value) => setTab(value as Tab)}
+        className="mt-2 flex items-center gap-1 border-b border-border"
+      >
+        <Tabs.List label="Provider sections">
+          {tabs.map((item) => (
+            <Tabs.Trigger key={item.id} value={item.id}>{item.label}</Tabs.Trigger>
+          ))}
+        </Tabs.List>
         <Badge variant="outline" className="ml-auto my-1.5 hidden sm:inline-flex">
           {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
         </Badge>
-      </nav>
+      </Tabs.Root>
 
       {notice ? (
         <p role="status" className="mt-4 rounded-md border border-success/20 bg-success/5 px-3 py-2 text-xs">{notice}</p>
@@ -229,50 +234,13 @@ export function ProviderDetailPage() {
 
       {tab === "overview" ? (
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Credential</CardTitle>
-              <CardDescription>Write-only API key. Only a masked hint is ever returned.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-accent text-accent-foreground">
-                  <KeyRound className="size-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">
-                    {provider.configured
-                      ? "Key configured " + (provider.apiKeyHint ?? "")
-                      : "Key missing"}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {provider.apiKeyUpdatedAt
-                      ? "Updated " + formatDateTime(provider.apiKeyUpdatedAt)
-                      : "No database key. The gateway may still use an environment bootstrap key."}
-                  </p>
-                </div>
-              </div>
-              {featureFlags.providerKeyManagement ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setKeyMode("replace")}>
-                    {provider.hasApiKey ? "Replace key" : "Set key"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive hover:text-destructive"
-                    disabled={!provider.hasApiKey}
-                    onClick={() => setKeyMode("remove")}
-                  >
-                    Remove key
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">Key management is disabled by rollout flag.</p>
-              )}
-            </CardContent>
-          </Card>
+          <ProviderCredentialCard
+            provider={provider}
+            canManage={featureFlags.providerKeyManagement}
+            onReplace={() => setKeyMode("replace")}
+            onRemove={() => setKeyMode("remove")}
+            onFixGatewayKey={() => setSecretHelpOpen(true)}
+          />
 
           <Card>
             <CardHeader>
@@ -484,8 +452,14 @@ export function ProviderDetailPage() {
           provider={provider}
           mode={keyMode}
           onDone={setNotice}
+          onFixGatewayKey={() => { setKeyMode(null); setSecretHelpOpen(true); }}
         />
       ) : null}
+
+      <ProviderSecretHelpDialog
+        open={secretHelpOpen}
+        onOpenChange={setSecretHelpOpen}
+      />
 
       {modelOpen ? (
         <ProviderModelDialog
@@ -521,9 +495,9 @@ export function ProviderDetailPage() {
           <p>Delete <span className="font-medium">{provider.displayName}</span>?</p>
           <p className="text-muted-foreground">Models in this catalog are deleted with it. Routes must be moved first.</p>
           {deleteError ? (
-            <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive">
-              <p>{deleteError}</p>
-              <p className="mt-1 text-[11px]">Reassign the app-client routes that reference this provider, then retry.</p>
+            <div role="alert" className="space-y-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive">
+              <p>{getErrorMessage(deleteError)}</p>
+              <ProviderUsageList references={deleteReferences} />
             </div>
           ) : null}
         </div>
@@ -551,9 +525,9 @@ export function ProviderDetailPage() {
         <div className="space-y-3 text-xs leading-5">
           <p>Remove <span className="font-mono">{deletingModel?.modelId}</span>?</p>
           {modelError ? (
-            <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive">
-              <p>{modelError}</p>
-              <p className="mt-1 text-[11px]">Move the routes that use this model to another catalog entry, then retry.</p>
+            <div role="alert" className="space-y-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive">
+              <p>{getErrorMessage(modelError)}</p>
+              <ProviderUsageList references={modelReferences} />
             </div>
           ) : null}
         </div>

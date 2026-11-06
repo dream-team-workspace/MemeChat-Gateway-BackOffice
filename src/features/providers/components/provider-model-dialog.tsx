@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import {
   abilityLabels,
+  providerModelInputSchema,
   type Provider,
   type ProviderCatalogModel,
   type ProviderModelInput,
@@ -84,8 +85,14 @@ export function ProviderModelDialog({
       costPer,
       sortOrder,
     };
+    const parsed = providerModelInputSchema.safeParse(input);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      setError(issue?.message ?? "Check the model values.");
+      return;
+    }
     mutation.mutate(
-      { modelId: modelId.trim(), input },
+      { modelId: modelId.trim(), input: parsed.data },
       {
         onSuccess: (saved) => {
           onSaved?.(saved);

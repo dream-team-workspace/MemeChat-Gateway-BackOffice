@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 
-import type { Provider, ProviderInput, ProviderKind } from "@shared/admin-api";
+import {
+  providerInputSchema,
+  type Provider,
+  type ProviderInput,
+  type ProviderKind,
+} from "@shared/admin-api";
 
 import { FormField } from "@/components/common/form-field";
 import { Button } from "@/components/ui/button";
@@ -10,8 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { providerErrorHint } from "@/features/providers/lib/provider-errors";
 import { useCreateProvider, useUpdateProvider } from "@/features/providers/mutations/providers.mutations";
-import { ApiError, getErrorMessage } from "@/platform/api";
+import { getErrorMessage } from "@/platform/api";
 
 const kinds: Array<{ value: ProviderKind; label: string }> = [
   { value: "llm", label: "Language model" },
@@ -20,6 +26,14 @@ const kinds: Array<{ value: ProviderKind; label: string }> = [
   { value: "embeddings", label: "Embeddings" },
   { value: "vector", label: "Vector storage" },
 ];
+
+function slugifyProviderId(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
 
 function configTextFor(provider?: Provider | null) {
   return JSON.stringify(provider?.config ?? {}, null, 2);
@@ -40,6 +54,7 @@ export function ProviderFormDialog({
   const create = useCreateProvider();
   const update = useUpdateProvider(provider?.id ?? "");
   const [id, setId] = useState("");
+  const [idTouched, setIdTouched] = useState(false);
   const [displayName, setDisplayName] = useState(provider?.displayName ?? "");
   const [kind, setKind] = useState<ProviderKind>(provider?.kind ?? "llm");
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "");
@@ -47,13 +62,17 @@ export function ProviderFormDialog({
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [configText, setConfigText] = useState(() => configTextFor(provider));
+  const [configOpen, setConfigOpen] = useState(
+    Object.keys(provider?.config ?? {}).length > 0,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const pending = create.isPending || update.isPending;
-  const secretMissing =
-    error !== null &&
-    (create.error instanceof ApiError && create.error.code === "SECRET_KEY_NOT_CONFIGURED" ||
-      update.error instanceof ApiError && update.error.code === "SECRET_KEY_NOT_CONFIGURED");
+  const mutationError = editing ? update.error : create.error;
+  const errorHint =
+    error && mutationError && getErrorMessage(mutationError) === error
+      ? providerErrorHint(mutationError)
+      : null;
 
   function submit() {
     setError(null);
@@ -70,17 +89,25 @@ export function ProviderFormDialog({
     }
 
     const input: ProviderInput = {
+      ...(id.trim() ? { id: id.trim() } : {}),
       displayName: displayName.trim(),
       kind,
       baseUrl: baseUrl.trim(),
       enabled,
       config: config as Record<string, unknown>,
     };
-    if (!editing && id.trim()) input.id = id.trim();
     if (!editing && apiKey.trim()) input.apiKey = apiKey.trim();
 
+    const parsed = providerInputSchema.safeParse(input);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const field = issue?.path.length ? String(issue.path[0]) + ": " : "";
+      setError(field + (issue?.message ?? "Check the form values."));
+      return;
+    }
+
     const mutation = editing ? update : create;
-    mutation.mutate(input, {
+    mutation.mutate(parsed.data, {
       onSuccess: (saved) => {
         setApiKey("");
         setError(null);
@@ -119,7 +146,11 @@ export function ProviderFormDialog({
             <Input
               id="provider-display-name"
               value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setDisplayName(value);
+                if (!editing && !idTouched) setId(slugifyProviderId(value));
+              }}
               placeholder="ElevenLabs"
               autoFocus
             />
@@ -127,12 +158,15 @@ export function ProviderFormDialog({
           <FormField
             htmlFor="provider-id"
             label="Provider ID"
-            hint={editing ? "Immutable after creation." : "Optional. Generated from the name when blank."}
+            hint={editing ? "Immutable after creation." : "Generated from the name; editable before creation."}
           >
             <Input
               id="provider-id"
               value={editing ? (provider?.id ?? "") : id}
-              onChange={(event) => setId(event.target.value)}
+              onChange={(event) => {
+                setIdTouched(true);
+                setId(event.target.value.toLowerCase());
+              }}
               placeholder="elevenlabs"
               disabled={editing}
               className="font-mono text-xs"
@@ -172,6 +206,7 @@ export function ProviderFormDialog({
         >
           <Input
             id="provider-base-url"
+            type="url"
             value={baseUrl}
             onChange={(event) => setBaseUrl(event.target.value)}
             placeholder="https://api.example.com/v1"
@@ -219,27 +254,34 @@ export function ProviderFormDialog({
           </div>
         )}
 
-        <FormField
-          htmlFor="provider-config"
-          label="Advanced config (JSON)"
-          hint="Provider-level defaults such as workspace, organization, or output format."
+        <details
+          className="rounded-lg border border-border"
+          open={configOpen}
+          onToggle={(event) => setConfigOpen(event.currentTarget.open)}
         >
-          <Textarea
-            id="provider-config"
-            value={configText}
-            onChange={(event) => setConfigText(event.target.value)}
-            className="min-h-28 font-mono text-xs"
-            spellCheck={false}
-          />
-        </FormField>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">
+            Advanced config (JSON)
+          </summary>
+          <div className="space-y-1.5 border-t border-border p-3">
+            <p className="text-[11px] text-muted-foreground">
+              Provider-level defaults such as workspace, organization, or output format.
+            </p>
+            <Textarea
+              id="provider-config"
+              value={configText}
+              onChange={(event) => setConfigText(event.target.value)}
+              className="min-h-28 font-mono text-xs"
+              spellCheck={false}
+              aria-label="Advanced config JSON"
+            />
+          </div>
+        </details>
 
         {error ? (
           <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             <p>{error}</p>
-            {secretMissing ? (
-              <p className="mt-1 font-mono text-[11px]">
-                Set PROVIDER_SECRET_KEY on the gateway (32-byte base64 or 64 hex characters), then retry.
-              </p>
+            {errorHint ? (
+              <p className="mt-1 text-[11px] leading-5">{errorHint}</p>
             ) : null}
           </div>
         ) : null}
