@@ -10,6 +10,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { providerRouteWarning } from "@/features/providers/lib/provider-status";
+import { cn } from "@/lib/utils";
+
+function providerOptionSuffix(provider: ProviderStatus) {
+  if (provider.credentialState === "unreadable") return " · credential error";
+  if (provider.credentialState === "missing") return " · key missing";
+  if (!provider.enabled) return " · disabled";
+  return "";
+}
 
 export function RouteRow({
   ability,
@@ -35,11 +44,13 @@ export function RouteRow({
   onRemove: () => void;
 }) {
   const provider = providers.find((item) => item.id === value.providerId);
+  const selectedModel = models.find((item) => item.modelId === value.modelId);
   const selectedProviderMissing =
     value.providerId !== "" && !providers.some((item) => item.id === value.providerId);
   const selectedModelMissing =
     value.modelId !== "" && !models.some((item) => item.modelId === value.modelId);
   const routed = value.providerId !== "" && value.modelId !== "";
+  const warning = provider ? providerRouteWarning(provider) : null;
 
   return (
     <div className="px-5 py-4">
@@ -81,7 +92,7 @@ export function RouteRow({
             <option value="">Select provider</option>
             {providers.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.displayName}{item.configured ? "" : " · key missing"}
+                {item.displayName}{providerOptionSuffix(item)}
               </option>
             ))}
             {selectedProviderMissing ? (
@@ -123,16 +134,30 @@ export function RouteRow({
         </p>
       ) : null}
 
-      {provider && !provider.configured ? (
-        <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+      {warning ? (
+        <div
+          role="status"
+          className={cn(
+            "mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-[11px]",
+            warning.tone === "destructive"
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-warning/30 bg-warning/10 text-warning",
+          )}
+        >
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
           <p>
-            Provider key is missing. Calls will return 503 until a key is set.{" "}
-            <Link to="/providers/$providerId" params={{ providerId: provider.id }} className="underline">
+            <span className="font-medium">{warning.title}.</span> {warning.body}{" "}
+            <Link to="/providers/$providerId" params={{ providerId: provider?.id ?? "" }} className="underline">
               Open provider
             </Link>
           </p>
         </div>
+      ) : null}
+
+      {selectedModel && !selectedModel.enabled ? (
+        <p role="alert" className="mt-2 text-[11px] font-medium text-warning">
+          The selected model is disabled. Choose an enabled model before saving.
+        </p>
       ) : null}
 
       {error ? (

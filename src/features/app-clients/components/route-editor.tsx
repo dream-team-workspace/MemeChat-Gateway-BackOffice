@@ -1,14 +1,9 @@
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, TriangleAlert } from "lucide-react";
 
 import {
   abilityLabels,
   abilityOrder,
-  type AbilityId,
   type AppClient,
-  type ProviderCatalogModel,
-  type ProviderStatus,
 } from "@shared/admin-api";
 
 import { EmptyState, ErrorState, LoadingRows } from "@/components/common/async-state";
@@ -16,19 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RouteRow } from "@/features/app-clients/components/route-row";
-import {
-  firstIncomplete,
-  routeInputs,
-  routesEqual,
-  toRouteDraft,
-  type RouteDraft,
-} from "@/features/app-clients/hooks/use-route-draft";
-import { appClientKeys, appClientsApi } from "@/features/app-clients/api/app-clients.api";
-import { useSaveAppClientRoutes } from "@/features/app-clients/mutations/app-clients.mutations";
-import { abilitiesQueryOptions } from "@/features/abilities/queries/abilities.queries";
-import { providersQueryOptions } from "@/features/providers/queries/providers.queries";
+import { useRouteEditor } from "@/features/app-clients/hooks/use-route-editor";
 import { featureFlags } from "@/lib/feature-flags";
-import { ApiError, getErrorMessage } from "@/platform/api";
+import { getErrorMessage } from "@/platform/api";
 
 function LegacyCapabilityMatrix({
   client,
@@ -39,7 +24,7 @@ function LegacyCapabilityMatrix({
 }) {
   return (
     <>
-      <div className="mt-5 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning-foreground">
+      <div className="mt-5 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning">
         <TriangleAlert className="mt-0.5 size-4 shrink-0" />
         <p>{reason}</p>
       </div>
@@ -72,94 +57,13 @@ function LegacyCapabilityMatrix({
 }
 
 export function RouteEditor({ client }: { client: AppClient }) {
-  const abilities = useQuery(abilitiesQueryOptions);
-  const providers = useQuery(providersQueryOptions);
-  const save = useSaveAppClientRoutes(client.id);
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<RouteDraft[]>(() => toRouteDraft(client.routes));
-  const [baseline, setBaseline] = useState<RouteDraft[]>(() => toRouteDraft(client.routes));
-  const [error, setError] = useState<string | null>(null);
-  const [rowError, setRowError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-
-  const reload = useMutation({
-    mutationFn: () => appClientsApi.get(client.id),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(appClientKeys.detail(client.id), updated);
-      setDraft(toRouteDraft(updated.routes));
-      setBaseline(toRouteDraft(updated.routes));
-      setError(null);
-      setRowError(null);
-      setConflict(false);
-      setNotice("Client reloaded");
-    },
-    onError: (reloadError) => setError(getErrorMessage(reloadError)),
-  });
-
-  const { modelsByAbility, providersByAbility } = useMemo(() => {
-    const abilityItems = abilities.data?.items ?? [];
-    const providerItems = providers.data?.items ?? [];
-    const modelMap = new Map<string, ProviderCatalogModel[]>();
-    const providerMap = new Map<string, ProviderStatus[]>();
-    for (const abilityId of abilityOrder) {
-      const models = abilityItems.find((item) => item.id === abilityId)?.models ?? [];
-      modelMap.set(abilityId, models);
-      providerMap.set(
-        abilityId,
-        providerItems.filter(
-          (provider) =>
-            provider.kind === abilityId ||
-            models.some((model) => model.providerId === provider.id),
-        ),
-      );
-    }
-    return { modelsByAbility: modelMap, providersByAbility: providerMap };
-  }, [abilities.data, providers.data]);
-
-  function modelsFor(ability: AbilityId, providerId: string, currentModelId: string) {
-    return (modelsByAbility.get(ability) ?? []).filter(
-      (model) =>
-        model.providerId === providerId &&
-        (model.enabled || model.modelId === currentModelId),
-    );
-  }
-
-  function updateRow(ability: AbilityId, patch: Partial<RouteDraft>) {
-    setDraft((current) =>
-      current.map((row) => (row.ability === ability ? { ...row, ...patch } : row)),
-    );
-    setNotice(null);
-    setError(null);
-    setRowError(null);
-    setConflict(false);
-  }
-
-  function changeProvider(ability: AbilityId, providerId: string) {
-    if (providerId === "") {
-      updateRow(ability, { providerId: "", modelId: "" });
-      return;
-    }
-    const first = modelsFor(ability, providerId, "").find((model) => model.enabled);
-    updateRow(ability, { providerId, modelId: first?.modelId ?? "" });
-  }
-
-  function removeRow(ability: AbilityId) {
-    updateRow(ability, { providerId: "", modelId: "" });
-  }
-
-  const serverRoutes = toRouteDraft(client.routes);
-  const serverChanged = !routesEqual(baseline, serverRoutes);
-  const dirty = !routesEqual(draft, baseline);
-  const incomplete = firstIncomplete(draft);
-  const isLoading = abilities.isLoading || providers.isLoading;
-  const loadError = abilities.error ?? providers.error;
+  const editor = useRouteEditor(client);
 
   if (!client.routes) {
     return (
       <LegacyCapabilityMatrix
         client={client}
-        reason="This gateway does not expose ability routes yet. Showing the legacy capability matrix. Deploy migration 0009 and the routing gateway to enable provider selection."
+        reason="This gateway does not expose ability routes yet. Showing the legacy capability matrix. Apply migration 0009, migration 0010, and the routing gateway to enable provider selection."
       />
     );
   }
@@ -173,37 +77,6 @@ export function RouteEditor({ client }: { client: AppClient }) {
     );
   }
 
-  function submit() {
-    setNotice(null);
-    setError(null);
-    setRowError(null);
-    setConflict(false);
-    if (incomplete) {
-      setError("Finish or remove the incomplete " + incomplete.ability + " row before saving.");
-      setRowError(incomplete.ability);
-      return;
-    }
-    save.mutate(routeInputs(draft), {
-      onSuccess: (updated) => {
-        setDraft(toRouteDraft(updated.routes));
-        setBaseline(toRouteDraft(updated.routes));
-        setNotice("Routes saved");
-        setRowError(null);
-      },
-      onError: (mutationError) => {
-        const message = getErrorMessage(mutationError);
-        setError(message);
-        if (mutationError instanceof ApiError && mutationError.status === 409) {
-          setConflict(true);
-        }
-        if (mutationError instanceof ApiError && mutationError.status === 422) {
-          const affected = draft.find((row) => message.includes(row.ability));
-          if (affected) setRowError(affected.ability);
-        }
-      },
-    });
-  }
-
   return (
     <>
       <Card className="mt-5">
@@ -214,39 +87,40 @@ export function RouteEditor({ client }: { client: AppClient }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {editor.isLoading ? (
             <div className="p-5"><LoadingRows rows={5} /></div>
-          ) : loadError ? (
+          ) : editor.loadError ? (
             <ErrorState
-              message={getErrorMessage(loadError)}
+              message={getErrorMessage(editor.loadError)}
               onRetry={() => {
-                void abilities.refetch();
-                void providers.refetch();
+                void editor.abilities.refetch();
+                void editor.providers.refetch();
               }}
             />
           ) : (
             <div className="divide-y divide-border">
               {abilityOrder.map((ability) => {
-                const row = draft.find((item) => item.ability === ability) ?? {
+                const row = editor.draft.find((item) => item.ability === ability) ?? {
                   ability,
                   providerId: "",
                   modelId: "",
                 };
-                const label = abilities.data?.items.find((item) => item.id === ability)?.displayName ?? abilityLabels[ability];
-                const compatible = providersByAbility.get(ability) ?? [];
+                const label =
+                  editor.abilities.data?.items.find((item) => item.id === ability)?.displayName ??
+                  abilityLabels[ability];
                 return (
                   <RouteRow
                     key={ability}
                     ability={ability}
                     label={label}
                     value={row}
-                    providers={compatible}
-                    models={modelsFor(ability, row.providerId, row.modelId)}
-                    disabled={save.isPending || serverChanged}
-                    error={rowError === ability ? error ?? undefined : undefined}
-                    onProviderChange={(providerId) => changeProvider(ability, providerId)}
-                    onModelChange={(modelId) => updateRow(ability, { modelId })}
-                    onRemove={() => removeRow(ability)}
+                    providers={editor.providersFor(ability)}
+                    models={editor.modelsFor(ability, row.providerId, row.modelId)}
+                    disabled={editor.save.isPending || editor.serverChanged}
+                    error={editor.rowError === ability ? editor.error ?? undefined : undefined}
+                    onProviderChange={(providerId) => editor.changeProvider(ability, providerId)}
+                    onModelChange={(modelId) => editor.changeModel(ability, modelId)}
+                    onRemove={() => editor.removeRow(ability)}
                   />
                 );
               })}
@@ -255,52 +129,50 @@ export function RouteEditor({ client }: { client: AppClient }) {
         </CardContent>
       </Card>
 
-      {serverChanged ? (
+      {editor.serverChanged ? (
         <div className="mt-4 flex flex-col gap-2 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <p>This client changed on the gateway. Reload it before saving to avoid overwriting the newer version.</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => reload.mutate()} disabled={reload.isPending}>
-            {reload.isPending ? "Reloading…" : "Reload client"}
+          <p>
+            This client changed on the gateway. The gateway serializes concurrent saves and the
+            last save wins, so reload before saving to review the newer routes.
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => editor.reload.mutate()} disabled={editor.reload.isPending}>
+            {editor.reload.isPending ? "Reloading…" : "Reload client"}
           </Button>
         </div>
       ) : null}
 
-      {error && !rowError ? (
+      {editor.error && !editor.rowError ? (
         <div role="alert" className="mt-4 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          <p>{error}</p>
-          {conflict ? (
-            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => reload.mutate()} disabled={reload.isPending}>
-              Reload client
-            </Button>
-          ) : null}
+          <p>{editor.error}</p>
         </div>
       ) : null}
 
-      {notice ? (
-        <p role="status" className="mt-4 rounded-md border border-success/20 bg-success/5 px-3 py-2 text-xs">{notice}</p>
+      {editor.notice ? (
+        <p role="status" className="mt-4 rounded-md border border-success/20 bg-success/5 px-3 py-2 text-xs">{editor.notice}</p>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap justify-end gap-2">
+      <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap justify-end gap-2 border-t border-border bg-background/95 py-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:py-0 sm:backdrop-blur-none">
         <Button
           type="button"
           variant="outline"
-          onClick={() => {
-            setDraft(toRouteDraft(client.routes));
-            setBaseline(toRouteDraft(client.routes));
-            setError(null);
-            setRowError(null);
-            setNotice(null);
-          }}
-          disabled={save.isPending || !dirty}
+          onClick={editor.discard}
+          disabled={editor.save.isPending || !editor.dirty}
         >
           Discard
         </Button>
         <Button
           type="button"
-          onClick={submit}
-          disabled={save.isPending || !dirty || serverChanged || Boolean(incomplete) || isLoading}
+          onClick={editor.saveRoutes}
+          disabled={
+            editor.save.isPending ||
+            !editor.dirty ||
+            editor.serverChanged ||
+            Boolean(editor.incomplete) ||
+            editor.isLoading
+          }
         >
           <Save />
-          {save.isPending ? "Saving…" : "Save routes"}
+          {editor.save.isPending ? "Saving…" : "Save routes"}
         </Button>
       </div>
     </>

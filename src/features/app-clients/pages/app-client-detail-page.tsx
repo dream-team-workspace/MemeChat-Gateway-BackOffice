@@ -14,9 +14,11 @@ import {
 import type { AppClient } from "@shared/admin-api";
 
 import { ErrorState, LoadingRows } from "@/components/common/async-state";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs } from "@/components/ui/tabs";
 import {
   AppClientAdminAudit,
   AppClientUserActivity,
@@ -24,6 +26,8 @@ import {
 import { AppClientFormDialog } from "@/features/app-clients/components/app-client-form-dialog";
 import { ClientKeyDialog } from "@/features/app-clients/components/client-key-dialog";
 import { RouteEditor } from "@/features/app-clients/components/route-editor";
+import { RouteSummary } from "@/features/app-clients/components/route-summary";
+import { routedAbilityCount } from "@/features/app-clients/lib/app-client-routes";
 import {
   useDeleteAppClient,
   useRotateAppClientKey,
@@ -40,15 +44,6 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "audit", label: "Admin audit" },
   { id: "activity", label: "User activity" },
 ];
-
-function routedCount(client: AppClient) {
-  if (client.routes) {
-    return client.routes.filter(
-      (route) => route.enabled && route.providerId !== null && route.modelId !== null,
-    ).length;
-  }
-  return client.capabilities.filter((capability) => capability.enabled).length;
-}
 
 function platformLabel(platform: AppClient["platform"]) {
   return platform.charAt(0).toUpperCase() + platform.slice(1);
@@ -85,28 +80,31 @@ function AppClientEditor({ client }: { client: AppClient }) {
   const [editOpen, setEditOpen] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const [rotateError, setRotateError] = useState<string | null>(null);
   const [copiedSha, setCopiedSha] = useState(false);
 
   function deleteClient() {
-    if (!window.confirm("Delete " + client.name + "? This removes its ability routes and audit history remains.")) return;
     remove.mutate(client.id, {
       onSuccess: () => void navigate({ to: "/app-clients" }),
-      onError: (mutationError) => setError(getErrorMessage(mutationError)),
+      onError: (mutationError) => setDeleteError(getErrorMessage(mutationError)),
     });
   }
 
   function rotateKey() {
-    if (!window.confirm("Rotate " + client.name + "? The current client key stops working immediately.")) return;
     rotate.mutate(undefined, {
       onSuccess: (updated) => {
         if (!updated.clientKey) {
-          setError("The gateway did not return a new client key.");
+          setRotateError("The gateway did not return a new client key.");
           return;
         }
+        setRotateOpen(false);
         setRevealedKey(updated.clientKey);
         setError(null);
       },
-      onError: (mutationError) => setError(getErrorMessage(mutationError)),
+      onError: (mutationError) => setRotateError(getErrorMessage(mutationError)),
     });
   }
 
@@ -122,7 +120,7 @@ function AppClientEditor({ client }: { client: AppClient }) {
     }
   }
 
-  const routed = routedCount(client);
+  const routed = routedAbilityCount(client);
   const sha1 = client.clientKeySha1 ?? null;
 
   return (
@@ -151,9 +149,11 @@ function AppClientEditor({ client }: { client: AppClient }) {
           {client.description ? (
             <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">{client.description}</p>
           ) : null}
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Updated {formatDateTime(client.updatedAt)} ·{" "}
-            {client.routes ? routed + "/5 abilities routed" : routed + " capabilities enabled"}
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            Updated {formatDateTime(client.updatedAt)}
+            <span aria-hidden="true">·</span>
+            <RouteSummary client={client} />
+            {!client.routes ? <span>{routed} capabilities enabled</span> : null}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -165,7 +165,7 @@ function AppClientEditor({ client }: { client: AppClient }) {
             type="button"
             variant="outline"
             className="text-destructive hover:text-destructive"
-            onClick={deleteClient}
+            onClick={() => { setDeleteError(null); setDeleteOpen(true); }}
             disabled={remove.isPending}
           >
             <Trash2 />
@@ -174,33 +174,22 @@ function AppClientEditor({ client }: { client: AppClient }) {
         </div>
       </div>
 
-      <nav role="tablist" aria-label="App client sections" className="mt-2 flex gap-1 border-b border-border">
-        {tabs.map((item) => {
-          const selected = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                selected
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+      <Tabs.Root
+        value={tab}
+        onValueChange={(value) => setTab(value as Tab)}
+        className="mt-2 flex items-center gap-1 border-b border-border"
+      >
+        <Tabs.List label="App client sections">
+          {tabs.map((item) => (
+            <Tabs.Trigger key={item.id} value={item.id}>{item.label}</Tabs.Trigger>
+          ))}
+        </Tabs.List>
         {tab === "activity" ? (
           <Badge variant="outline" className="ml-auto my-1.5 hidden sm:inline-flex">
             Metadata only
           </Badge>
         ) : null}
-      </nav>
+      </Tabs.Root>
 
       {error ? (
         <p role="alert" className="mt-4 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -254,7 +243,12 @@ function AppClientEditor({ client }: { client: AppClient }) {
                   ) : null}
                 </div>
               </div>
-              <Button type="button" variant="outline" onClick={rotateKey} disabled={rotate.isPending}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setRotateError(null); setRotateOpen(true); }}
+                disabled={rotate.isPending}
+              >
                 <RefreshCw className={cn(rotate.isPending && "animate-spin")} />
                 {rotate.isPending
                   ? "Rotating…"
@@ -277,6 +271,37 @@ function AppClientEditor({ client }: { client: AppClient }) {
           client={client}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete app client"
+        description="This removes the client, its ability routes, and its legacy capability grants. Audit history remains."
+        confirmLabel="Delete client"
+        pendingLabel="Deleting…"
+        pending={remove.isPending}
+        error={deleteError}
+        onConfirm={deleteClient}
+      >
+        <p>Delete <span className="font-medium">{client.name}</span>?</p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={rotateOpen}
+        onOpenChange={setRotateOpen}
+        title={client.keyRotatedAt ? "Rotate client key" : "Issue client key"}
+        description="The current key stops working immediately. The new key is shown once and cannot be retrieved later."
+        confirmLabel={client.keyRotatedAt ? "Rotate key" : "Issue key"}
+        pendingLabel="Rotating…"
+        pending={rotate.isPending}
+        variant="default"
+        error={rotateError}
+        onConfirm={rotateKey}
+      >
+        <p>
+          The app must be updated with the new <span className="font-mono">X-App-Client-Key</span> value.
+        </p>
+      </ConfirmDialog>
 
       {revealedKey ? (
         <ClientKeyDialog

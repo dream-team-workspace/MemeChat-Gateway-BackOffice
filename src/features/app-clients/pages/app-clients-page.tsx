@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { AppClientFormDialog } from "@/features/app-clients/components/app-client-form-dialog";
 import { ClientKeyDialog } from "@/features/app-clients/components/client-key-dialog";
+import { RouteSummary } from "@/features/app-clients/components/route-summary";
 import { appClientsQueryOptions } from "@/features/app-clients/queries/app-clients.queries";
 import { getErrorMessage } from "@/platform/api";
 import { formatDateTime } from "@/lib/format";
@@ -20,15 +21,6 @@ import { cn } from "@/lib/utils";
 
 function platformLabel(platform: AppClient["platform"]) {
   return platform.charAt(0).toUpperCase() + platform.slice(1);
-}
-
-function mappedCount(client: AppClient) {
-  if (client.routes) {
-    return client.routes.filter(
-      (route) => route.enabled && route.providerId !== null && route.modelId !== null,
-    ).length;
-  }
-  return client.capabilities.filter((capability) => capability.enabled).length;
 }
 
 export function AppClientsPage() {
@@ -183,9 +175,7 @@ function LinkCard({ client, onOpen }: { client: AppClient; onOpen: () => void })
               {client.enabled ? "Enabled" : "Disabled"}
             </Badge>
             <Badge variant="outline">
-              {client.routes
-                ? mappedCount(client) + "/5 abilities routed"
-                : mappedCount(client) + " capabilities enabled"}
+              <RouteSummary client={client} />
             </Badge>
             <Badge variant={client.requireFirebaseUid ? "info" : "outline"}>
               {client.requireFirebaseUid ? "Firebase UID required" : "Firebase UID not required"}
