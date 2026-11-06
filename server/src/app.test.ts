@@ -39,6 +39,7 @@ const capability = {
 const provider = {
   id: "opencode",
   displayName: "OpenCode",
+  kind: "llm",
   role: "Chat and reasoning models",
   capabilities: ["chat.standard", "chat.premium"],
   models: [
@@ -59,6 +60,9 @@ const provider = {
   modelValid: true,
   credential: "Credential configured",
   configured: true,
+  hasApiKey: true,
+  apiKeyHint: "…9f2a",
+  apiKeyUpdatedAt: "2026-11-04T10:00:00Z",
   status: "healthy",
   detail: "Authenticated OpenCode models request succeeded (HTTP 200).",
   latencyMs: 42,
@@ -70,6 +74,65 @@ const provider = {
     detail: "Authenticated OpenCode models request succeeded (HTTP 200).",
     checkedBy: "operator@test.local",
   },
+};
+
+const providerCatalogModel = {
+  providerId: "opencode",
+  modelId: "deepseek-v4.1-flash",
+  displayName: "DeepSeek V4.1 Flash",
+  ability: "llm",
+  enabled: true,
+  config: {},
+  costUnit: "turn",
+  costCredits: 1,
+  costPer: 1,
+  sortOrder: 10,
+};
+
+const providerDetail = {
+  id: "opencode",
+  displayName: "OpenCode",
+  kind: "llm",
+  baseUrl: "https://opencode.test/v1",
+  enabled: true,
+  hasApiKey: true,
+  configured: true,
+  apiKeyHint: "…9f2a",
+  apiKeyUpdatedAt: "2026-11-04T10:00:00Z",
+  credential: "configured",
+  config: {},
+  models: [providerCatalogModel],
+  createdAt: "2026-11-01T08:00:00Z",
+  updatedAt: "2026-11-04T10:00:00Z",
+};
+
+const providerUnreadable = {
+  ...providerDetail,
+  id: "unreadable",
+  displayName: "Unreadable provider",
+  configured: false,
+  hasApiKey: true,
+  credential: "missing",
+  models: [],
+};
+
+const ability = {
+  id: "llm",
+  displayName: "Language model",
+  kind: "chat",
+  sortOrder: 10,
+  enabled: true,
+  models: [providerCatalogModel],
+};
+
+const appClientRoute = {
+  ability: "llm",
+  abilityName: "Language model",
+  providerId: "opencode",
+  providerName: "OpenCode",
+  modelId: "deepseek-v4.1-flash",
+  modelName: "DeepSeek V4.1 Flash",
+  enabled: true,
 };
 
 const auditEntry = {
@@ -109,6 +172,18 @@ const appClient = {
       capabilityName: "Standard chat",
       kind: "chat",
       modelId: "deepseek-v4.1-flash",
+      enabled: true,
+    },
+  ],
+  routes: [
+    appClientRoute,
+    {
+      ability: "tts",
+      abilityName: "Text to speech",
+      providerId: "in-use",
+      providerName: "In-use provider",
+      modelId: "voice",
+      modelName: "Voice",
       enabled: true,
     },
   ],
@@ -219,10 +294,58 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return json({ configured: true, projectId: "proj_test", baseUrl: "http://rc.test" });
   }
   if (url.pathname === "/internal/admin/providers") {
-    return json({ items: [provider] });
+    return method === "POST" ? json(providerDetail, 201) : json({ items: [provider] });
+  }
+  if (url.pathname === "/internal/admin/providers/opencode") {
+    if (method === "DELETE") return json({ deleted: true });
+    if (method === "PUT") return json(providerDetail);
+    return json(providerDetail);
   }
   if (url.pathname === "/internal/admin/providers/opencode/check") {
     return json(provider);
+  }
+  if (url.pathname === "/internal/admin/providers/opencode/models") {
+    return json({ items: [providerCatalogModel] });
+  }
+  if (url.pathname === "/internal/admin/providers/opencode/models/deepseek-v4.1-flash") {
+    if (method === "DELETE") return json({ deleted: true });
+    return json(providerCatalogModel);
+  }
+  if (url.pathname === "/internal/admin/providers/unreadable") {
+    return json(providerUnreadable);
+  }
+  if (url.pathname === "/internal/admin/providers/in-use") {
+    return json(
+      { code: "PROVIDER_IN_USE", message: "provider is referenced by app client routes" },
+      409,
+    );
+  }
+  if (url.pathname === "/internal/admin/providers/in-use/models/voice") {
+    return json(
+      { code: "PROVIDER_IN_USE", message: "model is referenced by app client routes" },
+      409,
+    );
+  }
+  if (url.pathname === "/internal/admin/providers/no-secret") {
+    return json(
+      {
+        code: "SECRET_KEY_NOT_CONFIGURED",
+        message: "PROVIDER_SECRET_KEY is not configured on the gateway",
+      },
+      503,
+    );
+  }
+  if (url.pathname === "/internal/admin/providers/invalid") {
+    return json(
+      {
+        code: "VALIDATION_FAILED",
+        message: "model \"bad\" belongs to ability \"tts\", not \"llm\"",
+      },
+      422,
+    );
+  }
+  if (url.pathname === "/internal/admin/abilities") {
+    return json({ items: [ability] });
   }
   if (url.pathname === "/internal/admin/capabilities") {
     return json({ items: [capability] });
@@ -250,6 +373,9 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.pathname === "/internal/admin/app-clients/" + appClient.id) {
     if (method === "DELETE") return json({ deleted: true });
     return json(appClient);
+  }
+  if (url.pathname === "/internal/admin/app-clients/" + appClient.id + "/routes") {
+    return json({ ...appClient, routes: [appClientRoute] });
   }
   if (url.pathname === "/internal/admin/app-clients/" + appClient.id + "/audit") {
     return json({ items: [appClientAuditEntry], nextCursor: "older" });
@@ -415,6 +541,7 @@ describe("live-only BFF admin API", () => {
       items: Array<{
         id: string;
         status: string;
+        credentialState: string;
         lastCheck: { status: string; checkedBy: string | null } | null;
       }>;
     }>(await app.request("/api/admin/providers"));
@@ -423,6 +550,7 @@ describe("live-only BFF admin API", () => {
     expect(list.items[0]?.status).toBe("healthy");
     expect(list.items[0]?.lastCheck?.status).toBe("healthy");
     expect(list.items[0]?.lastCheck?.checkedBy).toBe("operator@test.local");
+    expect(list.items[0]?.credentialState).toBe("ready");
 
     const checked = await jsonBody<{ id: string; status: string; latencyMs: number }>(
       await app.request("/api/admin/providers/opencode/check", { method: "POST" }),
@@ -431,6 +559,204 @@ describe("live-only BFF admin API", () => {
     expect(checked.status).toBe("healthy");
     expect(checked.latencyMs).toBe(42);
     expect(calls.at(-1)?.method).toBe("POST");
+  });
+
+  it("manages provider detail, credentials, and models without leaking keys", async () => {
+    const detail = await jsonBody<{
+      id: string;
+      apiKeyHint: string | null;
+      credentialState: string;
+      models: Array<{ modelId: string; ability: string }>;
+    }>(await app.request("/api/admin/providers/opencode"));
+    expect(detail.id).toBe("opencode");
+    expect(detail.apiKeyHint).toBe("…9f2a");
+    expect(detail.models[0]?.ability).toBe("llm");
+    expect(detail.credentialState).toBe("ready");
+
+    const unreadable = await jsonBody<{
+      configured: boolean;
+      hasApiKey: boolean;
+      credentialState: string;
+    }>(await app.request("/api/admin/providers/unreadable"));
+    expect(unreadable).toMatchObject({
+      configured: false,
+      hasApiKey: true,
+      credentialState: "unreadable",
+    });
+
+    const created = await app.request("/api/admin/providers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "ElevenLabs",
+        kind: "tts",
+        baseUrl: "https://api.elevenlabs.test/v1",
+        enabled: true,
+        apiKey: "sk_live_secret",
+        config: {},
+      }),
+    });
+    expect(created.status).toBe(201);
+    const createdBody = await created.text();
+    expect(createdBody).not.toContain("sk_live_secret");
+    expect(calls.at(-1)?.body).toContain('"display_name":"ElevenLabs"');
+    expect(calls.at(-1)?.body).toContain('"kind":"tts"');
+    expect(calls.at(-1)?.body).toContain('"base_url"');
+    expect(calls.at(-1)?.body).toContain('"api_key":"sk_live_secret"');
+
+    const updated = await app.request("/api/admin/providers/opencode", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "OpenCode",
+        kind: "llm",
+        baseUrl: "https://opencode.test/v1",
+        enabled: true,
+        apiKey: "sk_rotated",
+        config: {},
+      }),
+    });
+    expect(updated.status).toBe(200);
+    expect(await updated.text()).not.toContain("sk_rotated");
+    expect(calls.at(-1)?.body).toContain('"api_key":"sk_rotated"');
+
+    const cleared = await app.request("/api/admin/providers/opencode", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "OpenCode",
+        kind: "llm",
+        baseUrl: "https://opencode.test/v1",
+        enabled: true,
+        clearApiKey: true,
+        config: {},
+      }),
+    });
+    expect(cleared.status).toBe(200);
+    expect(calls.at(-1)?.body).toContain('"clear_api_key":true');
+    expect(calls.at(-1)?.body).not.toContain('"api_key"');
+
+    const models = await jsonBody<{ items: Array<{ modelId: string }> }>(
+      await app.request("/api/admin/providers/opencode/models"),
+    );
+    expect(models.items[0]?.modelId).toBe("deepseek-v4.1-flash");
+
+    const upserted = await app.request(
+      "/api/admin/providers/opencode/models/deepseek-v4.1-flash",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: "DeepSeek V4.1 Flash",
+          ability: "llm",
+          enabled: true,
+          config: { supportsReasoning: false },
+          costUnit: "turn",
+          costCredits: 1,
+          costPer: 1,
+          sortOrder: 10,
+        }),
+      },
+    );
+    expect(upserted.status).toBe(200);
+    expect(calls.at(-1)?.body).toContain('"cost_credits":1');
+    expect(calls.at(-1)?.body).toContain('"display_name"');
+
+    const removed = await jsonBody<{ deleted: boolean }>(
+      await app.request("/api/admin/providers/opencode", { method: "DELETE" }),
+    );
+    expect(removed.deleted).toBe(true);
+  });
+
+  it("surfaces provider conflict and secret configuration errors", async () => {
+    const conflict = await app.request("/api/admin/providers/in-use", {
+      method: "DELETE",
+    });
+    expect(conflict.status).toBe(409);
+    const conflictBody = await jsonBody<{
+      code: string;
+      details: {
+        appClients: Array<{ appClientId: string; ability: string; modelId: string | null }>;
+      };
+    }>(conflict);
+    expect(conflictBody.code).toBe("PROVIDER_IN_USE");
+    expect(conflictBody.details.appClients[0]).toMatchObject({
+      appClientId: appClient.id,
+      ability: "tts",
+      modelId: "voice",
+    });
+
+    const modelConflict = await app.request(
+      "/api/admin/providers/in-use/models/voice",
+      { method: "DELETE" },
+    );
+    expect(modelConflict.status).toBe(409);
+    const modelBody = await jsonBody<{
+      details: { modelId: string; appClients: Array<{ modelId: string | null }> };
+    }>(modelConflict);
+    expect(modelBody.details.modelId).toBe("voice");
+    expect(modelBody.details.appClients[0]?.modelId).toBe("voice");
+
+    const secret = await app.request("/api/admin/providers/no-secret", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "No secret",
+        kind: "tts",
+        baseUrl: "",
+        enabled: true,
+        apiKey: "sk_x",
+        config: {},
+      }),
+    });
+    expect(secret.status).toBe(503);
+    expect((await jsonBody<{ code: string }>(secret)).code).toBe(
+      "SECRET_KEY_NOT_CONFIGURED",
+    );
+
+    const invalid = await app.request("/api/admin/providers/invalid", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "Invalid",
+        kind: "llm",
+        baseUrl: "",
+        enabled: true,
+        config: {},
+      }),
+    });
+    expect(invalid.status).toBe(422);
+    expect(await jsonBody<{ code: string; message: string }>(invalid)).toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+  });
+
+  it("reads abilities and saves app-client ability routes", async () => {
+    const abilities = await jsonBody<{ items: Array<{ id: string; models: unknown[] }> }>(
+      await app.request("/api/admin/abilities"),
+    );
+    expect(abilities.items[0]?.id).toBe("llm");
+    expect(abilities.items[0]?.models).toHaveLength(1);
+
+    const saved = await app.request("/api/admin/app-clients/" + appClient.id + "/routes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        routes: [
+          {
+            ability: "llm",
+            providerId: "opencode",
+            modelId: "deepseek-v4.1-flash",
+            enabled: true,
+          },
+        ],
+      }),
+    });
+    expect(saved.status).toBe(200);
+    expect(calls.at(-1)?.body).toContain('"provider_id":"opencode"');
+    expect(calls.at(-1)?.body).toContain('"model_id":"deepseek-v4.1-flash"');
+    const body = await jsonBody<{ routes: Array<{ ability: string }> }>(saved);
+    expect(body.routes[0]?.ability).toBe("llm");
   });
 
   it("parses both Firebase UID policy values", () => {

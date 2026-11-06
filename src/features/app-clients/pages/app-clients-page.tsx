@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { AppClientFormDialog } from "@/features/app-clients/components/app-client-form-dialog";
 import { ClientKeyDialog } from "@/features/app-clients/components/client-key-dialog";
+import { RouteSummary } from "@/features/app-clients/components/route-summary";
 import { appClientsQueryOptions } from "@/features/app-clients/queries/app-clients.queries";
 import { getErrorMessage } from "@/platform/api";
 import { formatDateTime } from "@/lib/format";
@@ -20,10 +21,6 @@ import { cn } from "@/lib/utils";
 
 function platformLabel(platform: AppClient["platform"]) {
   return platform.charAt(0).toUpperCase() + platform.slice(1);
-}
-
-function mappedCount(client: AppClient) {
-  return client.capabilities.filter((capability) => capability.enabled).length;
 }
 
 export function AppClientsPage() {
@@ -50,7 +47,7 @@ export function AppClientsPage() {
       <PageHeader
         eyebrow="Clients"
         title="App clients"
-        description="Manage consumer apps and map each one to gateway capabilities and models."
+        description="Manage consumer apps and choose one provider and model per ability."
         actions={
           <>
             <Button
@@ -102,7 +99,7 @@ export function AppClientsPage() {
               description={
                 clients.data?.items.length
                   ? "Try a name, slug, or platform."
-                  : "Create a client, then choose which capabilities and models it can use."
+                  : "Create a client, then route each ability to a provider and model."
               }
               action={
                 <Button type="button" size="sm" onClick={() => setDialogOpen(true)}>
@@ -178,7 +175,7 @@ function LinkCard({ client, onOpen }: { client: AppClient; onOpen: () => void })
               {client.enabled ? "Enabled" : "Disabled"}
             </Badge>
             <Badge variant="outline">
-              {mappedCount(client)} {mappedCount(client) === 1 ? "capability" : "capabilities"} enabled
+              <RouteSummary client={client} />
             </Badge>
             <Badge variant={client.requireFirebaseUid ? "info" : "outline"}>
               {client.requireFirebaseUid ? "Firebase UID required" : "Firebase UID not required"}

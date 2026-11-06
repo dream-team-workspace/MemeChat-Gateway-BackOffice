@@ -5,6 +5,7 @@ import {
   appClientListSchema,
   appClientSchema,
   type AppClientInput,
+  type AppClientRouteInput,
 } from "@shared/admin-api";
 
 import { apiRequest } from "@/platform/api";
@@ -34,6 +35,12 @@ export const appClientsApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  saveRoutes: (id: string, routes: AppClientRouteInput[]) =>
+    apiRequest(
+      "/api/admin/app-clients/" + encodeURIComponent(id) + "/routes",
+      appClientSchema,
+      { method: "PUT", body: JSON.stringify({ routes }) },
+    ),
   remove: (id: string) =>
     apiRequest("/api/admin/app-clients/" + encodeURIComponent(id), appClientDeleteSchema, {
       method: "DELETE",

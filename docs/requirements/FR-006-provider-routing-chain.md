@@ -2,12 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Superseded by FR-022 (legacy chain retained read-only) |
 | Priority | Must |
 | Phase | 2 |
 | Owner | Frontend |
 | Depends on | FR-003 |
 | Source | [IA §4.5](../05-information-architecture.md), [API §8.3](../06-api-integration.md) |
+
+> **Superseded 2026-11-04.** Runtime provider selection is now per app client and per ability;
+> see [FR-022](FR-022-ability-routes.md). The ordered capability chain remains in the gateway
+> for compatibility and is shown read-only on the ability detail page. The editor and
+> `/capabilities/:id/routing` page were removed.
 
 ## Intent
 

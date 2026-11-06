@@ -20,7 +20,7 @@ type NavItem = {
   label: string;
   to:
     | "/"
-    | "/capabilities"
+    | "/abilities"
     | "/app-clients"
     | "/models"
     | "/providers"
@@ -31,7 +31,7 @@ type NavItem = {
 
 const operateNav: NavItem[] = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
-  { label: "Capabilities", to: "/capabilities", icon: Boxes },
+  { label: "Abilities", to: "/abilities", icon: Boxes },
   { label: "App clients", to: "/app-clients", icon: AppWindow },
   { label: "Models", to: "/models", icon: Cpu },
   { label: "Providers", to: "/providers", icon: Plug },

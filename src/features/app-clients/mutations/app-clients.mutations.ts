@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import type { AppClientInput } from "@shared/admin-api";
+import type { AppClientInput, AppClientRouteInput } from "@shared/admin-api";
 
 import { appClientKeys, appClientsApi } from "../api/app-clients.api";
 
@@ -28,6 +28,18 @@ export function useUpdateAppClient(id: string) {
   return useMutation({
     mutationFn: (input: AppClientInput) => appClientsApi.update(id, input),
     onSuccess: () => invalidate(id),
+  });
+}
+
+export function useSaveAppClientRoutes(id: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateAppClients();
+  return useMutation({
+    mutationFn: (routes: AppClientRouteInput[]) => appClientsApi.saveRoutes(id, routes),
+    onSuccess: (client) => {
+      queryClient.setQueryData(appClientKeys.detail(id), client);
+      invalidate(id);
+    },
   });
 }
 

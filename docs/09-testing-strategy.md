@@ -55,9 +55,11 @@ Use Testing Library with user-event and MSW.
 
 Critical components:
 
-- Capability table: loading, empty, error, filters, disabled badge, row navigation.
-- Capability form: validation, dirty state, JSON errors, review diff, 409/422 handling.
-- Provider chain editor: add/remove/reorder, last-enabled guard, invalid JSON.
+- Ability catalog and detail: loading, empty, provider/model grouping, legacy profile links.
+- Capability profile form: validation, dirty state, JSON errors, review diff, 409/422 handling.
+- Provider index/detail: kind filters, add/edit, key dialogs, model editor, 409/422/503 mapping.
+- App-client route editor: five fixed rows, provider filtering, model reset, missing-key warning,
+  remove, dirty state, route-only save, 422 row mapping, legacy fallback.
 - Kill switch dialog: required reason, type-ID confirmation, pending lock, failure keeps open.
 - Grant dialog: amount/reason validation, requestId reuse, pending lock, timeout message.
 - Ledger/usage tables: pagination, state badges, row detail, empty.
@@ -76,10 +78,11 @@ Rules:
 
 Every fixture and real response must parse with the shared Zod schema.
 
-- Fixtures for: capability list/detail, providers (including persisted `lastCheck`), models,
-  audit, app clients (including `clientKeySha1`), app-client audit/activity, user activity,
-  signed-in user directory, ledger states (all seven), usage statuses, grant success/error,
-  error envelope.
+- Fixtures for: ability catalog, provider list/detail/model, capability list/detail,
+  providers (including persisted `lastCheck`), models, audit, app clients (including
+  `clientKeySha1` and `routes[]`), app-client routes PUT, app-client audit/activity, user
+  activity, signed-in user directory, ledger states (all seven), usage statuses, grant
+  success/error, error envelope.
 - Golden files for upstream snake_case → canonical camelCase.
 - Negative fixtures: missing fields, wrong types, unknown enum values (should fail or map to
   `unknown` deliberately).
@@ -121,12 +124,13 @@ gateway and staging on deploy. There is no runtime mock mode.
 | E1 | Login via Cloudflare Access | Verified identity loaded; protected shell visible |
 | E2 | Non-allowlisted login | Access denied page; no session |
 | E3 | Session expiry during a read | Redirect to login with returnTo; after login, back to page |
-| E4 | Capabilities list/search/filter | URL updates; filtered rows; empty state; refresh |
+| E4 | Abilities catalog/filter | Five rows; provider/model counts; empty state; refresh |
 | E5 | Capability edit + review + save | Diff shown; PUT called; revision/toast; audit link |
 | E6 | Capability save conflict | 409 dialog; draft preserved; reload latest |
 | E7 | Kill switch disable | Reason + type-ID; pending; disabled banner; audit entry |
 | E8 | Kill switch re-enable | Default button (not red); reason; enabled badge |
-| E9 | Provider reorder + last-enabled guard | Order normalized; blocked when none enabled; audit |
+| E9 | App-client ability routes | Filtered providers/models; save only complete rows; reload keeps response |
+| E9b | Provider key lifecycle | Create/update key never returns plaintext; replace/remove hint and warning; 503 mapping |
 | E10 | Model create/edit | Upsert; list refresh; duplicate sort warning |
 | E11 | User lookup + ledger | Exact UID; internal states; pagination; row detail |
 | E12 | Usage tab | Metadata only; no content fields; pagination |

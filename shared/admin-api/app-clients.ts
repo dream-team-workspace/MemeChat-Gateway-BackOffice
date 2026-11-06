@@ -22,6 +22,34 @@ export const appClientCapabilitySchema = z.object({
 
 export type AppClientCapability = z.infer<typeof appClientCapabilitySchema>;
 
+/** One ability -> provider -> model selection on an app client. */
+export const appClientRouteSchema = z.object({
+  ability: z.string(),
+  abilityName: z.string(),
+  providerId: z.string().nullable(),
+  providerName: z.string().nullable(),
+  modelId: z.string().nullable(),
+  modelName: z.string().nullable(),
+  enabled: z.boolean(),
+});
+
+export type AppClientRoute = z.infer<typeof appClientRouteSchema>;
+
+export const appClientRouteInputSchema = z.object({
+  ability: z.enum(["llm", "tts", "stt", "embeddings", "vector"]),
+  providerId: z.string().min(1),
+  modelId: z.string().min(1),
+  enabled: z.boolean(),
+});
+
+export type AppClientRouteInput = z.infer<typeof appClientRouteInputSchema>;
+
+export const appClientRoutesInputSchema = z.object({
+  routes: z.array(appClientRouteInputSchema).max(5),
+});
+
+export type AppClientRoutesInput = z.infer<typeof appClientRoutesInputSchema>;
+
 export const appClientSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -30,6 +58,8 @@ export const appClientSchema = z.object({
   description: z.string(),
   enabled: z.boolean(),
   requireFirebaseUid: z.boolean().default(false),
+  /** Absent when the gateway predates ability routes. */
+  routes: z.array(appClientRouteSchema).optional(),
   capabilities: z.array(appClientCapabilitySchema),
   keyRotatedAt: isoDateTimeSchema.nullable(),
   /**
@@ -68,6 +98,8 @@ export const appClientInputSchema = z.object({
   description: z.string().trim().max(500),
   enabled: z.boolean(),
   requireFirebaseUid: z.boolean().default(false),
+  /** New clients may send routes; the gateway mirrors capabilities for rollout. */
+  routes: z.array(appClientRouteInputSchema).max(5).optional(),
   capabilities: z.array(appClientCapabilityInputSchema),
 });
 

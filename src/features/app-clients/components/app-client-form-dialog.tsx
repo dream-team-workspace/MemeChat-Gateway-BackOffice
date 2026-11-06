@@ -16,6 +16,7 @@ import {
   useCreateAppClient,
   useUpdateAppClient,
 } from "@/features/app-clients/mutations/app-clients.mutations";
+import { routeInputsForMetadataEdit } from "@/features/app-clients/lib/app-client-routes";
 import { getErrorMessage } from "@/platform/api";
 
 type Draft = {
@@ -98,6 +99,10 @@ export function AppClientFormDialog({
       description: draft.description,
       enabled: draft.enabled,
       requireFirebaseUid: draft.requireFirebaseUid,
+      // Preserve the ability routes when editing metadata. The gateway treats a
+      // supplied route set as authoritative; omitting it would derive routes
+      // from the legacy capability mirror and could silently replace them.
+      routes: routeInputsForMetadataEdit(client),
       capabilities: (client?.capabilities ?? []).map((capability) => ({
         capabilityId: capability.capabilityId,
         modelId: capability.modelId,
@@ -134,8 +139,8 @@ export function AppClientFormDialog({
       title={client ? "Edit app client" : "Add app client"}
       description={
         client
-          ? "Update the client identity. Capability grants are edited on the client page."
-          : "Create a client, then map its capabilities and models."
+          ? "Update the client identity. Ability routes are edited on the client page."
+          : "Create a client, then select one provider and model per ability."
       }
       footer={
         <>
