@@ -46,7 +46,7 @@ Out of scope:
 2. "Review" shows only changed fields (with show-unchanged), impact copy, actor, revision.
 3. High-impact actions require a confirmation dialog:
    - kill switch (reason + type-ID for disable),
-   - provider chain replacement,
+   - app-client route replacement,
    - credit grant (amount/reason/requestId; high amount extra confirm),
    - cache invalidation (impact copy).
 4. The confirm button is labeled with the action, not "OK".

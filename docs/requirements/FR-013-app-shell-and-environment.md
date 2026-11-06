@@ -41,7 +41,7 @@ Out of scope:
 ## Behavior
 
 1. `AppShell` renders skip link, sidebar, top bar, main, toaster.
-2. Sidebar groups: Operate (Overview, Capabilities, App clients, Models, Providers),
+2. Sidebar groups: Operate (Overview, Abilities, App clients, Models, Providers),
    Support (Users), System (Operations); Settings sits in the sidebar footer.
 3. Environment badge comes from `/api/auth/me` (or health/meta), never a build-only flag.
 4. Top bar shows breadcrumbs, command palette trigger, refresh where relevant.

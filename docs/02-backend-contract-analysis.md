@@ -4,9 +4,9 @@
 |---|---|
 | Analyzed checkout | `/home/dani/GolandProjects/MemeChat-Gateway` |
 | Commit state | Working tree at analysis time |
-| Date | 2026-10-21 (re-checked 2026-10-23) |
-| Backend sources | `docs/plan-ai-gateway.md`, `docs/phase-2/backend-management-plan.md`, `docs/phase-1/0001-baseline-report.md`, `cmd/gateway/routes.go` |
-| Status | Admin API **implemented in the gateway working tree** and verified live on 2026-10-23 |
+| Date | 2026-10-21 (re-checked 2026-10-23; routing added 2026-11-04) |
+| Backend sources | `docs/plan-ai-gateway.md`, `docs/phase-2/backend-management-plan.md`, `docs/phase-1/0001-baseline-report.md`, `docs/21-ability-provider-model-routing.md`, `migrations/0009_ability_provider_routing.sql`, `cmd/gateway/routes.go` |
+| Status | Admin API **implemented in the gateway working tree** and verified live on 2026-10-23; ability/provider routing is implemented on the local routing branch and is deployment-pending |
 
 ## 1. Executive summary
 
@@ -17,6 +17,20 @@ handlers, and RevenueCat-backed grants. The BFF has been exercised in `live` mod
 
 The backoffice is now **live-only**: it requires `ADMIN_API_SECRET` and forwards every read and
 mutation to the gateway. There is no runtime mock store or fixture fallback.
+
+**2026-11-04 routing update:** the gateway added a normalized ability → provider → model
+registry (migration 0009), encrypted write-only provider credentials, provider/model CRUD,
+`GET /internal/admin/abilities`, and `PUT /internal/admin/app-clients/{id}/routes`. The
+console now consumes those routes. The legacy `capabilities` table remains the cost/limits
+profile catalog, and `app_client_capabilities` remains a mirrored compatibility matrix during
+rollout.
+
+**2026-11-07 hardening:** migration 0010 adds the ability-aware route FK, credential-pair
+check, indexes, and `pg_trgm`; admin reads are batched; route writes are locked and
+validated; provider model writes are atomic; and `configured` now means the credential can
+be resolved. The BFF derives `credentialState` and distinguishes `missing` from
+`unreadable`, and enriches `409 PROVIDER_IN_USE` with referencing app clients. See
+[06-api-integration.md](06-api-integration.md) and [15-gateway-requests.md](15-gateway-requests.md).
 
 ## 2. What exists today (verified)
 
@@ -59,8 +73,17 @@ same rows; the console reads them from Postgres.
 | `PUT /internal/admin/models/{id}` | Upsert model row | Model editor |
 | `POST /internal/admin/cache/invalidate` | Reload in-memory registry snapshot | Operations |
 | `GET /internal/admin/revenuecat/status` | Non-secret RC configuration status | Operations + grant gating |
-| `GET /internal/admin/providers` | Provider configuration projection | Providers page |
+| `GET /internal/admin/providers` | Provider status projection with kind, key hint and persisted health | Providers page |
+| `POST /internal/admin/providers` | Create a provider; `api_key` is write-only | Add provider |
+| `GET /internal/admin/providers/{id}` | Full provider with model catalog; no credential | Provider detail |
+| `PUT /internal/admin/providers/{id}` | Update metadata/key; omit key to keep it, `clear_api_key` removes it | Edit/key dialogs |
+| `DELETE /internal/admin/providers/{id}` | Delete an unreferenced provider (409 `PROVIDER_IN_USE`) | Provider delete |
 | `POST /internal/admin/providers/{id}/check` | Safe provider health probe | Providers page |
+| `GET /internal/admin/providers/{id}/models` | Provider model catalog | Model tab |
+| `PUT /internal/admin/providers/{id}/models/{modelId}` | Upsert one model | Model editor |
+| `DELETE /internal/admin/providers/{id}/models/{modelId}` | Delete an unreferenced model | Model editor |
+| `GET /internal/admin/abilities` | Five abilities with every selectable model | Abilities catalog |
+| `PUT /internal/admin/app-clients/{id}/routes` | Replace the complete ability route set | App-client Access tab |
 | `GET /internal/admin/users/{uid}/ledger` | Ledger rows, keyset pagination | Ledger table |
 | `GET /internal/admin/users/{uid}/usage` | Usage events, keyset pagination | Usage table |
 | `POST /internal/admin/users/{uid}/credits/grant` | Positive CRD deposit via RevenueCat | Grant form |
@@ -89,6 +112,17 @@ same rows; the console reads them from Postgres.
   `REFUND_PENDING`, `REFUNDED`, `EXPIRED`, `FAILED`; integer credits; `(uid, request_id)`
   unique; keyset index `(uid, created_at DESC)`.
 - `usage_events`: metadata only (no content); keyset index `(uid, created_at DESC)`.
+- `abilities`: id, display_name, kind, sort_order, enabled, timestamps. Kinds are
+  `chat`, `tts`, `stt`, `embeddings`, `vector`.
+- `providers`: id, display_name, kind, base_url, enabled, AES-GCM ciphertext/nonce/hint and
+  update time, config, timestamps. API keys are never returned.
+- `provider_models`: `(provider_id, model_id)`, display_name, ability, enabled, config,
+  cost_unit/cost_credits/cost_per, sort_order. A model belongs to one ability and must match
+  its provider kind.
+- `app_client_routes`: `(app_client_id, ability)`, provider_id, model_id, enabled. The
+  composite FK prevents routing to a model the provider does not advertise; the legacy matrix
+  is mirrored in the same transaction.
+- `provider_audit`: append-only provider changes with redacted before/after snapshots.
 
 ## 4. Contract gaps and ambiguities
 
@@ -105,7 +139,9 @@ These are blockers or assumptions, not implementation details.
 | G7 | No aggregate usage/metrics endpoint | Dashboard would be fake | Show counts derived from capabilities/models + health; no invented metrics |
 | G8 | No delete endpoints for capabilities/models | UI must not imply deletion | Upsert + disable only |
 | G9 | No model audit trail documented | Model changes less attributable | Show actor in UI; request backend audit parity |
-| G10 | Provider adapter names are server-side | UI cannot offer a definitive enum | Free text + suggestions from existing chains; helper text |
+| G10 | **Resolved 2026-11-04** — providers, model catalogs and abilities are registry rows; the UI selects from the catalog instead of free text | Invalid provider/model pairs | Keep client-side filtering plus gateway 422 validation |
+| G17 | Provider status does not expose `enabled`; full detail does | Card cannot show red "Disabled" without a second request | Show key/health state on cards; detail shows the enabled badge |
+| G18 | Provider delete 409 body does not list referencing app clients | Modal cannot name them | Explain the FK protection and ask the operator to reassign routes; no invented list |
 | G11 | `PUT` upsert semantics (partial vs full) unspecified | Accidental field reset | Send full representation; preserve unknown fields; confirm |
 | G12 | Toggle has no optimistic-concurrency token | Race with another operator | Refetch after; show revision/updated time; no blind overwrite |
 | G13 | `ADMIN_API_SECRET` is all-or-nothing | No least privilege / per-operator scopes | BFF Access JWT + policy; request scoped tokens/RBAC later |

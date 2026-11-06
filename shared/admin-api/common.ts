@@ -87,10 +87,30 @@ export const providerHealthSchema = z.object({
 
 export type ProviderHealth = z.infer<typeof providerHealthSchema>;
 
+/** Derived credential readiness. Never inferred from a plaintext key. */
+export const credentialStateSchema = z.enum(["ready", "missing", "unreadable"]);
+
+export type CredentialState = z.infer<typeof credentialStateSchema>;
+
+/**
+ * The gateway exposes `configured` (the credential can be resolved) and
+ * `hasApiKey` (a ciphertext is stored). The distinction matters: a stored key
+ * that cannot be decrypted is not the same as a missing key.
+ */
+export function deriveCredentialState(value: {
+  configured: boolean;
+  hasApiKey: boolean;
+}): CredentialState {
+  if (value.configured) return "ready";
+  return value.hasApiKey ? "unreadable" : "missing";
+}
+
 export const providerStatusSchema = z.object({
   id: z.string(),
   displayName: z.string(),
+  kind: z.enum(["llm", "tts", "stt", "embeddings", "vector"]).optional(),
   role: z.string(),
+  enabled: z.boolean().default(true),
   capabilities: z.array(z.string()).optional(),
   models: z.array(providerModelSchema).optional(),
   endpoint: z.string(),
@@ -100,6 +120,10 @@ export const providerStatusSchema = z.object({
   limits: z.record(z.string(), z.unknown()).optional(),
   credential: z.string(),
   configured: z.boolean(),
+  credentialState: credentialStateSchema,
+  hasApiKey: z.boolean().optional(),
+  apiKeyHint: z.string().nullable().optional(),
+  apiKeyUpdatedAt: isoDateTimeSchema.nullable().optional(),
   status: providerStateSchema,
   detail: z.string(),
   latencyMs: z.number().int().nullable(),

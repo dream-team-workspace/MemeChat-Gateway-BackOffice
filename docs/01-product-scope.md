@@ -37,12 +37,14 @@ and has a named operator job. "It would be nice to see" is not a scope argument.
 |---|---|---|
 | Access | Operator login, session, allowlist, sign-out | FR-001 |
 | Boundary | BFF proxy, secret isolation, actor attribution | FR-002 |
-| Registry | List/inspect all capabilities, including disabled | FR-003 |
+| Registry | Ability catalog and availability | FR-022 |
+| Registry | Provider CRUD, write-only key, model catalog | FR-021 |
 | Registry | Edit cost, limits, fair use, flags, app gating | FR-004 |
 | Registry | Kill switch with reason | FR-005 |
-| Routing | Ordered provider chain add/edit/remove/reorder | FR-006 |
+| Routing | One provider/model per ability for each app client | FR-022 |
+| Routing | Legacy ordered capability chain (read-only) | FR-006 |
 | Audit | Per-capability audit history and before/after diff | FR-007 |
-| Catalog | Model list and upsert | FR-008 |
+| Catalog | Legacy app-picker model list and upsert | FR-008 |
 | Users | Signed-in directory with email and Pro/Ultra tier (directory live; email/tier write path pending) | FR-018 |
 | Users | Ledger inspection by exact UID | FR-009 |
 | Users | Usage inspection by exact UID | FR-010 |

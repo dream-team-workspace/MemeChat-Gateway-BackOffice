@@ -74,12 +74,14 @@ global resource with its own navigation, route, and ownership.
 Every domain exports only what routes/app need:
 
 ~~~ts
-// features/capabilities/index.ts
-export { CapabilitiesPage } from "./pages/capabilities-page";
-export { CapabilityDetailPage } from "./pages/capability-detail-page";
-export { CapabilityRoutingPage } from "./pages/capability-routing-page";
+// features/abilities/index.ts
+export { AbilitiesPage } from "./pages/abilities-page";
+export { AbilityDetailPage } from "./pages/ability-detail-page";
+
+// features/capabilities/index.ts (legacy profiles)
+export { CapabilityDetailLayout } from "./components/capability-detail-layout";
+export { CapabilityOverviewPage } from "./pages/capability-overview-page";
 export { CapabilityAuditPage } from "./pages/capability-audit-page";
-export { useCapabilitiesSummary } from "./queries/summary";
 ~~~
 
 - Only the **domain** has a public entry point. `components/routing` and

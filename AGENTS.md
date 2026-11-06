@@ -8,8 +8,16 @@
   `/internal/admin/*` API. There is no mock admin store or fixture fallback in the runtime;
   readiness, capabilities, routing, kill switch, audit, models, ledger, usage, cache, grants,
   and RevenueCat status were exercised against the gateway.
-- Capabilities, models, users, operations, and settings are wired through TanStack Query and
-  the BFF. The old dummy pages and `features/dashboard` are removed.
+- Providers, abilities, app-client routes, models, users, operations, and settings are wired
+  through TanStack Query and the BFF. The old dummy pages and `features/dashboard` are removed.
+- Ability → provider → model routing is implemented in the console: provider CRUD with
+  write-only API keys, provider model catalogs, a five-ability catalog, and the app-client
+  Access editor that saves `PUT /app-clients/:id/routes`. The console derives
+  `credentialState` (`ready` / `missing` / `unreadable`) from `configured` + `hasApiKey`,
+  distinguishes a stored-but-unreadable key from a missing key, and enriches 409 delete
+  errors with referencing app clients. Migrations 0009/0010 and the gateway routing branch
+  are still local/deployment-pending. Legacy capability rows remain the cost/limits
+  profiles and are no longer the primary navigation surface.
 - The gateway shipped the five BackOffice additions: users directory read endpoint, app-client
   SHA-1 identity, client admin audit, per-client activity read endpoint, and persisted provider
   health. User activity is now file-backed: app-client and user-scoped endpoints read daily
@@ -30,6 +38,7 @@
 6. `docs/10-ci-cd-and-environments.md` — branch/CI/deploy policy.
 7. `docs/14-cloudflare-access.md` — Access/Tunnel setup.
 8. `docs/15-gateway-requests.md` — gateway contract status, remaining write paths, and SQL.
+9. `docs/16-react-architecture.md` — composition, React 19, error boundaries, feature rules.
 
 Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals,
 `docs/03-architecture.md` for structure. Fix docs in the same change.
@@ -59,8 +68,10 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
   `X-Admin-Actor` on mutating requests.
 - Provider catalogs are authoritative: routing and model forms must use provider-published
   models and their single capability mapping; do not hardcode or allow free-text model ids.
-- App clients always carry the full capability matrix. Enabled rows must bind a capability to
-  a model routed for that capability; disabled rows remain present and are not grants.
+- App clients select at most one provider/model per coarse ability. `routes` is authoritative;
+  the legacy `capabilities` matrix is a rollout mirror and is still accepted by the gateway.
+  Filter provider choices by provider kind and model choices by provider + ability + enabled.
+  Metadata edits must send the current routes so the gateway does not re-derive them.
 - `requireFirebaseUid` is per app client. When true, the gateway requires the app-asserted
   `X-Firebase-Uid` header; when false it is optional request context only. Never treat the UID
   as proof of identity by itself.

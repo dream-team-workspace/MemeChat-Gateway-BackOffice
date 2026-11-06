@@ -7,7 +7,7 @@
 | Phase | 2 |
 | Owner | Frontend |
 | Depends on | FR-002 |
-| Source | [IA §4.8](../05-information-architecture.md), [API §8.4](../06-api-integration.md) |
+| Source | [IA §4.8](../05-information-architecture.md), [API §8.7](../06-api-integration.md) |
 
 ## Intent
 
@@ -68,7 +68,7 @@ Out of scope:
 
 ## Data and API
 
-See [API §8.4](../06-api-integration.md).
+See [API §8.7](../06-api-integration.md).
 
 ~~~ts
 interface ModelInput {
@@ -123,5 +123,5 @@ Assumption: PUT is an upsert and the response returns the model. If not, refetch
 
 ## Traceability
 
-[IA §4.8](../05-information-architecture.md) · [API §8.4](../06-api-integration.md) ·
+[IA §4.8](../05-information-architecture.md) · [API §8.7](../06-api-integration.md) ·
 [E2E E10](../09-testing-strategy.md)
