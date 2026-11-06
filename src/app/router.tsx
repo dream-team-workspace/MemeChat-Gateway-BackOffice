@@ -2,37 +2,99 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from "@tanstack/react-router";
 
-import { AbilitiesPage, AbilityDetailPage } from "@/features/abilities";
-import { AppClientDetailPage, AppClientsPage } from "@/features/app-clients";
 import { AppLayout } from "@/app/layouts/app-layout";
 import { RootLayout } from "@/app/layouts/root-layout";
 import { NotFoundPage } from "@/app/not-found-page";
-import {
-  CapabilityAuditPage,
-  CapabilityDetailLayout,
-  CapabilityOverviewPage,
-} from "@/features/capabilities";
-import { ModelsPage } from "@/features/models";
-import { OperationsPage } from "@/features/operations";
-import { OverviewPage } from "@/features/overview";
-import { ProviderDetailPage, ProvidersPage } from "@/features/providers";
-import { SettingsPage } from "@/features/settings";
-import {
-  UserActivityPage,
-  UserDetailLayout,
-  UserLedgerPage,
-  UsersPage,
-  UserUsagePage,
-} from "@/features/users";
+import { RouteError } from "@/app/route-error";
 import { ensureSession } from "@/platform/auth/auth-store";
-import { LoginPage } from "@/platform/auth/pages/login-page";
+
+// Route-level code splitting: the shell stays in the initial bundle; each
+// product domain loads on navigation.
+const LoginPage = lazyRouteComponent(
+  () => import("@/platform/auth/pages/login-page"),
+  "LoginPage",
+);
+const OverviewPage = lazyRouteComponent(
+  () => import("@/features/overview"),
+  "OverviewPage",
+);
+const AbilitiesPage = lazyRouteComponent(
+  () => import("@/features/abilities"),
+  "AbilitiesPage",
+);
+const AbilityDetailPage = lazyRouteComponent(
+  () => import("@/features/abilities"),
+  "AbilityDetailPage",
+);
+const CapabilityDetailLayout = lazyRouteComponent(
+  () => import("@/features/capabilities"),
+  "CapabilityDetailLayout",
+);
+const CapabilityOverviewPage = lazyRouteComponent(
+  () => import("@/features/capabilities"),
+  "CapabilityOverviewPage",
+);
+const CapabilityAuditPage = lazyRouteComponent(
+  () => import("@/features/capabilities"),
+  "CapabilityAuditPage",
+);
+const AppClientsPage = lazyRouteComponent(
+  () => import("@/features/app-clients"),
+  "AppClientsPage",
+);
+const AppClientDetailPage = lazyRouteComponent(
+  () => import("@/features/app-clients"),
+  "AppClientDetailPage",
+);
+const ModelsPage = lazyRouteComponent(
+  () => import("@/features/models"),
+  "ModelsPage",
+);
+const ProvidersPage = lazyRouteComponent(
+  () => import("@/features/providers"),
+  "ProvidersPage",
+);
+const ProviderDetailPage = lazyRouteComponent(
+  () => import("@/features/providers"),
+  "ProviderDetailPage",
+);
+const UsersPage = lazyRouteComponent(
+  () => import("@/features/users"),
+  "UsersPage",
+);
+const UserDetailLayout = lazyRouteComponent(
+  () => import("@/features/users"),
+  "UserDetailLayout",
+);
+const UserLedgerPage = lazyRouteComponent(
+  () => import("@/features/users"),
+  "UserLedgerPage",
+);
+const UserUsagePage = lazyRouteComponent(
+  () => import("@/features/users"),
+  "UserUsagePage",
+);
+const UserActivityPage = lazyRouteComponent(
+  () => import("@/features/users"),
+  "UserActivityPage",
+);
+const OperationsPage = lazyRouteComponent(
+  () => import("@/features/operations"),
+  "OperationsPage",
+);
+const SettingsPage = lazyRouteComponent(
+  () => import("@/features/settings"),
+  "SettingsPage",
+);
 
 const rootRoute = createRootRoute({
   component: RootLayout,
   notFoundComponent: NotFoundPage,
+  errorComponent: RouteError,
 });
 
 const loginRoute = createRoute({
@@ -55,6 +117,7 @@ const appRoute = createRoute({
     if (!(await ensureSession())) throw redirect({ to: "/login" });
   },
   component: AppLayout,
+  errorComponent: RouteError,
 });
 
 const overviewRoute = createRoute({
