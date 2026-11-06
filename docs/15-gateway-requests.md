@@ -79,6 +79,9 @@ Local verification on 2026-11-04:
   removed); the route count returned to 3/5. A metadata-only client edit preserved the
   three routes.
 - No plaintext key appeared in an admin response, the BFF response, or the browser.
+- Migration 0010 was applied to the local Postgres after a preflight returned no
+  ability/model mismatches; the route FK is now
+  `(provider_id, model_id, ability)`, verified with `pg_get_constraintdef`.
 
 ## Implementation status — verified 2026-10-26
 
