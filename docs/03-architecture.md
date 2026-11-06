@@ -6,6 +6,7 @@
 | Scope | Web console + Backend-for-Frontend (BFF) |
 | Depends on | [Backend contract analysis](02-backend-contract-analysis.md), [DESIGN.md](../DESIGN.md) |
 | Decisions | ADR-0001..0008 |
+| Composition | [16-react-architecture.md](16-react-architecture.md) |
 
 ## 1. Architecture in one picture
 

@@ -6,7 +6,7 @@
 | Priority | Must |
 | Phase | 2 |
 | Owner | Frontend + gateway |
-| Depends on | FR-002; gateway migration 0009 |
+| Depends on | FR-002; gateway migrations 0009 and 0010 |
 | Source | Gateway working tree `docs/21-ability-provider-model-routing.md` §4–§5; [API §2.2](../06-api-integration.md) |
 
 ## Intent
@@ -35,15 +35,18 @@ Out of scope:
 ## Behavior
 
 1. `GET /api/admin/providers` renders cards. A missing key is amber and disables probing;
-   health comes from `lastCheck` when present.
+   a stored key that cannot be decrypted is a red `Credential error`, not `Key missing`;
+   health comes from `lastCheck` when present. The BFF derives `credentialState`
+   (`ready` / `missing` / `unreadable`) once, and components render it without re-deriving.
 2. Add provider opens a dialog; the key field is a password input with show/hide,
    `autocomplete="new-password"`, and is cleared on close. Edit never prefills a key.
 3. Create/update sends camelCase to the BFF; the BFF converts to snake_case. Omitting
    `apiKey` keeps the stored key; `clearApiKey: true` removes it.
 4. Detail tabs are Overview, Models, Health. The Models tab edits catalog entries; the model
    id is immutable and the ability is fixed to the provider kind.
-5. Delete confirmation stays open on 409 `PROVIDER_IN_USE` and explains that routes must be
-   reassigned first. No invented list of clients is shown.
+5. Delete confirmation stays open on 409 `PROVIDER_IN_USE`. The BFF enriches the error
+   with `details.appClients` from the app-client read model; the dialog lists those clients
+   and links to each. If the enrichment read fails, it shows the reassign instruction.
 6. A missing `PROVIDER_SECRET_KEY` on the gateway returns 503
    `SECRET_KEY_NOT_CONFIGURED`; the dialog explains the gateway env requirement.
 7. All provider/model mutations invalidate the provider cache, the ability catalog, and
@@ -58,6 +61,9 @@ Out of scope:
 - [x] A provider can advertise multiple models for its ability.
 - [x] Model id is immutable on edit; ability mismatch is prevented in the UI and mapped on 422.
 - [x] Provider/model delete conflicts preserve the dialog and show the gateway message.
+- [x] A stored key that cannot be decrypted shows `Credential error` / `Stored key unavailable`,
+  links to the gateway `PROVIDER_SECRET_KEY` help, and never says only “Add key”.
+- [x] Provider/model delete conflicts list the referencing app clients when the BFF can read them.
 - [x] Feature flag `VITE_PROVIDER_KEY_MANAGEMENT=false` hides mutating actions.
 
 ## Data and API
@@ -71,7 +77,8 @@ Out of scope:
 | PUT/DELETE | `/api/admin/providers/:id/models/:modelId` | `PUT/DELETE .../models/:modelId` |
 
 Schemas: `shared/admin-api/providers.ts` (`providerSchema`, `providerCatalogModelSchema`,
-`providerInputSchema`, `providerModelInputSchema`).
+`providerInputSchema`, `providerModelInputSchema`, `providerInUseDetailsSchema`) and
+`credentialStateSchema` in `shared/admin-api/common.ts`.
 
 ## Security
 

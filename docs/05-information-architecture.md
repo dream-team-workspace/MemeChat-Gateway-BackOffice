@@ -152,7 +152,7 @@ chevron. The route `/capabilities` redirects here.
 Behavior: read-only catalog. Provider/model creation lives on Providers; per-client selection
 lives on the app-client Access tab. Empty state points to Providers.
 
-States: skeleton rows; error with retry; empty catalog note (migration 0009 not applied).
+States: skeleton rows; error with retry; empty catalog note (migrations 0009/0010 not applied).
 
 ### 4.4 Ability detail — `/abilities/:abilityId`
 
@@ -180,8 +180,8 @@ redeploy. The key is always write-only.
 
 Index: page header with Add provider; search and kind filters (All, Language, Speech,
 Embeddings, Vector); responsive card grid. Each card shows name/kind, key or health badge,
-base URL, key hint or "Key missing", model count, ability chips, last check, Manage and
-Check health. Add opens a dialog; Manage opens the detail page.
+base URL, key hint / "Key missing" / "Stored key unusable", model count, ability chips,
+last check, Manage and Check health. Add opens a dialog; Manage opens the detail page.
 
 Create/edit dialog fields: display name, optional id (slugified by the gateway when blank),
 kind, base URL, enabled, API key (create only), advanced config JSON. The key field is a
@@ -190,18 +190,21 @@ close. Edit never prefills a key.
 
 Detail tabs: Overview, Models, Health.
 
-- **Overview** — credential card (`Key •••• {hint}`, updated time, Set/Replace/Remove key),
+- **Overview** — credential card (`Key •••• {hint}`, updated time, Set/Replace/Remove key;
+  a stored-but-unreadable key shows `Stored key unusable` plus **Fix gateway key**),
   connection card (base URL, config JSON, timestamps), and a model-catalog summary.
 - **Models** — table of model id/name, ability, cost, status; Add/Edit/Remove. The model ID
   is immutable after creation; ability is fixed to the provider kind; config is JSON with
-  per-kind hints. Removing a referenced model returns 409 and keeps the dialog open.
+  per-kind hints. Removing a referenced model returns 409, keeps the dialog open, and lists
+  the referencing app clients when the BFF can read them.
 - **Health** — persisted last check, latency, detail, checked-by, and a safe probe. Probing
   is disabled until the provider is configured and has a model.
 
 Key rules: replace/remove are destructive dialogs; remove requires an explicit checkbox.
 The response never contains a plaintext key. `PROVIDER_SECRET_KEY` missing returns 503
 `SECRET_KEY_NOT_CONFIGURED` with a copyable deploy hint. Deleting a provider referenced by
-routes returns 409 `PROVIDER_IN_USE`; do not close the dialog.
+routes returns 409 `PROVIDER_IN_USE`; keep the dialog open and list the BFF-enriched
+`details.appClients` references.
 
 States: loading skeletons; empty registry with Add; key missing warning (Save still allowed
 elsewhere); disabled provider; no models; 404 after concurrent deletion; 409/422/503 inline.
@@ -215,14 +218,17 @@ badge, and Remove. Provider choices are filtered by provider kind; model choices
 
 Behavior: changing provider resets the model to its first enabled model; Remove clears the
 row; Save sends only complete rows to `PUT /api/admin/app-clients/:id/routes`; dirty state
-compares the five `{ability, providerId, modelId}` tuples. A provider with a missing key shows
-an amber inline warning but does not block Save. On success the client query is replaced with
-the response and the baseline resets. 422 maps to the affected row; 409 offers Reload.
+compares the five `{ability, providerId, modelId}` tuples. A missing provider key shows an
+amber warning; a stored-but-unreadable key shows a red warning and the gateway master-key
+remedy. Neither blocks Save. On success the client query is replaced with the response and
+the baseline resets. A 422 maps to the affected row; a 404 returns to the client list. Route
+saves do not return 409 — the gateway serializes them and the last save wins.
 If the client has no `routes` field (older gateway) or the rollout flag is off, show a
 read-only legacy capability matrix and disable the editor.
 
 Metadata edits preserve the current routes; the form sends them because the gateway treats a
-supplied route set as authoritative. The client list shows `n/5 abilities routed`.
+supplied route set as authoritative. The client list shows `n/5` with five accessible
+ability dots.
 ### 4.6 Kill switch (within detail)
 
 **Purpose:** disable a capability immediately during an incident.
@@ -389,7 +395,8 @@ the draft remains visible and can be copied, but cannot be saved blindly.
 4. Save routes; the gateway returns the updated client and mirrors the legacy matrix.
 
 Guard: incomplete rows block Save; missing provider keys warn but do not block; disabled
-models are excluded; 422 highlights the affected row; 409 offers Reload.
+models are excluded; 422 highlights the affected row; 404 returns to the list. A changed
+server baseline offers Reload because the gateway does not return a route-save conflict.
 
 ### 5.3.1 Rotate a provider key
 

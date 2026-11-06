@@ -197,6 +197,8 @@ export interface Provider {
   apiKeyHint: string | null;
   apiKeyUpdatedAt: IsoDateTime | null;
   credential: "configured" | "missing" | string;
+  /** BFF-derived: ready | missing | unreadable */
+  credentialState: "ready" | "missing" | "unreadable";
   config: Record<string, unknown>;
   models: ProviderModel[];
   createdAt: IsoDateTime;
@@ -514,7 +516,13 @@ Content-Type: application/json
 
 The BFF converts to `display_name`, `base_url`, `api_key`; `apiKey` is never echoed.
 `PUT /api/admin/providers/:id` with no `apiKey` keeps the stored key. `clearApiKey: true`
-removes it. Both return the full `Provider` (no credential), 201 on create.
+removes it. Both return the full `Provider` (no credential), 201 on create. Every provider
+response carries `credentialState`; `hasApiKey && !configured` becomes `unreadable`, never
+`missing`.
+
+Deleting a referenced provider/model returns 409 `PROVIDER_IN_USE`. The BFF adds
+`details.appClients` (app client id/name/slug, ability, modelId) so the delete dialog can
+list the routes that must move first.
 
 ### 8.5 Provider model upsert
 

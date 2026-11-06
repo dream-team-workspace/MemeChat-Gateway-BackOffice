@@ -23,8 +23,14 @@ registry (migration 0009), encrypted write-only provider credentials, provider/m
 `GET /internal/admin/abilities`, and `PUT /internal/admin/app-clients/{id}/routes`. The
 console now consumes those routes. The legacy `capabilities` table remains the cost/limits
 profile catalog, and `app_client_capabilities` remains a mirrored compatibility matrix during
-rollout. See [06-api-integration.md](06-api-integration.md) and
-[15-gateway-requests.md](15-gateway-requests.md).
+rollout.
+
+**2026-11-07 hardening:** migration 0010 adds the ability-aware route FK, credential-pair
+check, indexes, and `pg_trgm`; admin reads are batched; route writes are locked and
+validated; provider model writes are atomic; and `configured` now means the credential can
+be resolved. The BFF derives `credentialState` and distinguishes `missing` from
+`unreadable`, and enriches `409 PROVIDER_IN_USE` with referencing app clients. See
+[06-api-integration.md](06-api-integration.md) and [15-gateway-requests.md](15-gateway-requests.md).
 
 ## 2. What exists today (verified)
 
