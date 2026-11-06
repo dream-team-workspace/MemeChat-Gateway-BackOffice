@@ -106,6 +106,16 @@ const providerDetail = {
   updatedAt: "2026-11-04T10:00:00Z",
 };
 
+const providerUnreadable = {
+  ...providerDetail,
+  id: "unreadable",
+  displayName: "Unreadable provider",
+  configured: false,
+  hasApiKey: true,
+  credential: "missing",
+  models: [],
+};
+
 const ability = {
   id: "llm",
   displayName: "Language model",
@@ -165,7 +175,18 @@ const appClient = {
       enabled: true,
     },
   ],
-  routes: [appClientRoute],
+  routes: [
+    appClientRoute,
+    {
+      ability: "tts",
+      abilityName: "Text to speech",
+      providerId: "in-use",
+      providerName: "In-use provider",
+      modelId: "voice",
+      modelName: "Voice",
+      enabled: true,
+    },
+  ],
   keyRotatedAt: null,
   clientKeySha1: "0123456789abcdef0123456789abcdef01234567",
   createdAt: "2026-10-25T08:00:00Z",
@@ -290,9 +311,18 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (method === "DELETE") return json({ deleted: true });
     return json(providerCatalogModel);
   }
+  if (url.pathname === "/internal/admin/providers/unreadable") {
+    return json(providerUnreadable);
+  }
   if (url.pathname === "/internal/admin/providers/in-use") {
     return json(
       { code: "PROVIDER_IN_USE", message: "provider is referenced by app client routes" },
+      409,
+    );
+  }
+  if (url.pathname === "/internal/admin/providers/in-use/models/voice") {
+    return json(
+      { code: "PROVIDER_IN_USE", message: "model is referenced by app client routes" },
       409,
     );
   }
@@ -511,6 +541,7 @@ describe("live-only BFF admin API", () => {
       items: Array<{
         id: string;
         status: string;
+        credentialState: string;
         lastCheck: { status: string; checkedBy: string | null } | null;
       }>;
     }>(await app.request("/api/admin/providers"));
@@ -519,6 +550,7 @@ describe("live-only BFF admin API", () => {
     expect(list.items[0]?.status).toBe("healthy");
     expect(list.items[0]?.lastCheck?.status).toBe("healthy");
     expect(list.items[0]?.lastCheck?.checkedBy).toBe("operator@test.local");
+    expect(list.items[0]?.credentialState).toBe("ready");
 
     const checked = await jsonBody<{ id: string; status: string; latencyMs: number }>(
       await app.request("/api/admin/providers/opencode/check", { method: "POST" }),
@@ -533,11 +565,24 @@ describe("live-only BFF admin API", () => {
     const detail = await jsonBody<{
       id: string;
       apiKeyHint: string | null;
+      credentialState: string;
       models: Array<{ modelId: string; ability: string }>;
     }>(await app.request("/api/admin/providers/opencode"));
     expect(detail.id).toBe("opencode");
     expect(detail.apiKeyHint).toBe("…9f2a");
     expect(detail.models[0]?.ability).toBe("llm");
+    expect(detail.credentialState).toBe("ready");
+
+    const unreadable = await jsonBody<{
+      configured: boolean;
+      hasApiKey: boolean;
+      credentialState: string;
+    }>(await app.request("/api/admin/providers/unreadable"));
+    expect(unreadable).toMatchObject({
+      configured: false,
+      hasApiKey: true,
+      credentialState: "unreadable",
+    });
 
     const created = await app.request("/api/admin/providers", {
       method: "POST",
@@ -628,7 +673,29 @@ describe("live-only BFF admin API", () => {
       method: "DELETE",
     });
     expect(conflict.status).toBe(409);
-    expect((await jsonBody<{ code: string }>(conflict)).code).toBe("PROVIDER_IN_USE");
+    const conflictBody = await jsonBody<{
+      code: string;
+      details: {
+        appClients: Array<{ appClientId: string; ability: string; modelId: string | null }>;
+      };
+    }>(conflict);
+    expect(conflictBody.code).toBe("PROVIDER_IN_USE");
+    expect(conflictBody.details.appClients[0]).toMatchObject({
+      appClientId: appClient.id,
+      ability: "tts",
+      modelId: "voice",
+    });
+
+    const modelConflict = await app.request(
+      "/api/admin/providers/in-use/models/voice",
+      { method: "DELETE" },
+    );
+    expect(modelConflict.status).toBe(409);
+    const modelBody = await jsonBody<{
+      details: { modelId: string; appClients: Array<{ modelId: string | null }> };
+    }>(modelConflict);
+    expect(modelBody.details.modelId).toBe("voice");
+    expect(modelBody.details.appClients[0]?.modelId).toBe("voice");
 
     const secret = await app.request("/api/admin/providers/no-secret", {
       method: "PUT",

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { isoDateTimeSchema } from "./common.js";
+import { credentialStateSchema, isoDateTimeSchema } from "./common.js";
 
 /** Coarse ability/provider kind used by the gateway registry. */
 export const providerKindSchema = z.enum([
@@ -51,6 +51,7 @@ export const providerSchema = z.object({
   apiKeyHint: z.string().nullable(),
   apiKeyUpdatedAt: isoDateTimeSchema.nullable(),
   credential: providerCredentialSchema.or(z.string()),
+  credentialState: credentialStateSchema,
   config: z.record(z.string(), z.unknown()).default({}),
   models: z.array(providerCatalogModelSchema).default([]),
   createdAt: isoDateTimeSchema,
@@ -58,6 +59,24 @@ export const providerSchema = z.object({
 });
 
 export type Provider = z.infer<typeof providerSchema>;
+
+/** One app-client route that blocks deleting a provider or one of its models. */
+export const providerUsageRefSchema = z.object({
+  appClientId: z.string(),
+  appClientName: z.string(),
+  appClientSlug: z.string(),
+  ability: z.string(),
+  modelId: z.string().nullable(),
+});
+
+export type ProviderUsageRef = z.infer<typeof providerUsageRefSchema>;
+
+export const providerInUseDetailsSchema = z.object({
+  appClients: z.array(providerUsageRefSchema),
+  modelId: z.string().optional(),
+});
+
+export type ProviderInUseDetails = z.infer<typeof providerInUseDetailsSchema>;
 
 export const providerDeleteSchema = z.object({
   deleted: z.boolean(),
