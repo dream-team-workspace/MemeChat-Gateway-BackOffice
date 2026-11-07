@@ -1,0 +1,225 @@
+# MemeChat Gateway - Vectors
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/09-errors-and-http-status.txt
+
+## 1. Endpoints
+
+POST /v1/vectors/upsert
+POST /v1/vectors/query
+POST /v1/vectors/delete
+
+Content-Type: application/json
+Accept: application/json
+
+Authentication: X-App-Client-Key required.
+
+The vector backend is DeepLake. Each app client is isolated in a table derived
+from the authenticated app-client ID. The app never names a table, workspace,
+or provider.
+
+## 2. Tenant isolation
+
+- The table is derived from the app-client ID, not from request data.
+- The app cannot read or write another app client's vectors by changing a
+  request field.
+- Vector IDs are scoped to the app client's table.
+- Metadata is stored with each vector and returned on query.
+
+## 3. Upsert
+
+Request:
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "vectors": [
+    {
+      "id": "doc-1",
+      "values": [0.1, 0.2, 0.3],
+      "metadata": { "source": "faq", "lang": "en" }
+    }
+  ]
+}
+
+Fields:
+
+requestId
+  Required. UUID. Correlation identifier; not an idempotency key.
+
+vectors
+  Required. 1 to 100 entries.
+
+vectors[].id
+  Required. Non-empty, at most 200 characters, unique within the request.
+
+vectors[].values
+  Required. 1 to 4,096 floats. All vectors in one app-client table must use the
+  same dimension; the backend infers it from the first stored row.
+
+vectors[].metadata
+  Optional JSON object. At most 8 KiB when serialized. Defaults to {}.
+
+Success:
+
+HTTP 200
+Content-Type: application/json; charset=utf-8
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "upserted": 1
+}
+
+upserted equals the number of vectors in the request. Existing IDs are
+replaced. The backend upsert is a delete of the incoming IDs followed by an
+insert; it is not exposed as a cross-statement transaction.
+
+## 4. Query
+
+Request:
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "vector": [0.1, 0.2, 0.3],
+  "topK": 5,
+  "filter": { "lang": "en" }
+}
+
+Fields:
+
+requestId
+  Required. UUID.
+
+vector
+  Required. 1 to 4,096 floats. Must match the table's embedding dimension.
+
+topK
+  Optional. Default 5. Maximum 50.
+
+filter
+  Optional JSON object. Applied as metadata containment: a row matches when
+  its metadata contains all keys/values in filter. Max 8 KiB serialized.
+
+Success:
+
+HTTP 200
+Content-Type: application/json; charset=utf-8
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "matches": [
+    {
+      "id": "doc-1",
+      "score": 0.91,
+      "metadata": { "source": "faq", "lang": "en" }
+    }
+  ]
+}
+
+matches is ordered by score descending. The score is DeepLake's vector
+similarity score for the configured embedding index; higher is more similar.
+If metadata was absent, metadata is returned as an empty object.
+
+An empty table returns an empty matches array, not an error.
+
+## 5. Delete
+
+Request:
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "ids": ["doc-1", "doc-2"]
+}
+
+Fields:
+
+requestId
+  Required. UUID.
+
+ids
+  Required. 1 to 100 non-empty unique strings.
+
+Success:
+
+HTTP 200
+Content-Type: application/json; charset=utf-8
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "deleted": 2
+}
+
+deleted equals the number of requested IDs. Missing IDs are not reported
+separately; delete is idempotent for the caller's intent.
+
+## 6. Limits
+
+- Max vectors per upsert: 100.
+- Max IDs per delete: 100.
+- Max dimensions: 4,096.
+- Max topK: 50.
+- Max metadata/filter: 8 KiB each.
+- Max request body: 8 MiB.
+- Request timeout: 30 seconds.
+
+The app-client table uses one embedding dimension. Sending a vector of a
+different dimension than the first stored row fails at the provider and returns
+502 UPSTREAM_ERROR.
+
+## 7. Response states
+
+HTTP 200
+  Operation succeeded.
+
+HTTP 400 INVALID_REQUEST
+  Invalid JSON; missing/invalid requestId; empty/oversized vectors list; empty
+  or duplicate ID; missing values; dimensions outside 1..4096; topK outside
+  1..50; metadata/filter not JSON-serializable or too large; extra JSON after
+  the object.
+
+HTTP 401 UNAUTHENTICATED
+  Missing/invalid/unknown/disabled app-client key.
+
+HTTP 403 CAPABILITY_NOT_IN_PLAN
+  The app client has no vector route.
+
+HTTP 422 PAYLOAD_TOO_LARGE
+  Request body exceeds 8 MiB, or a vector/metadata payload exceeds the limit.
+
+HTTP 429 RATE_LIMITED
+  DeepLake rate limit. Retry-After and details.retryAfterSeconds when known.
+
+HTTP 502 UPSTREAM_ERROR
+  DeepLake request failed or returned an invalid response.
+
+HTTP 503 CAPABILITY_DISABLED
+  No vector route, provider/model disabled, credential missing/unreadable, or
+  DeepLake authentication failed.
+
+HTTP 500 INTERNAL
+  Unexpected gateway error. Report X-Request-Id.
+
+## 8. Client rules
+
+- Always send a UUID requestId.
+- Use the same dimension for every vector in an app-client table.
+- Treat upsert as replace-by-ID, not append.
+- Do not assume delete reports missing IDs.
+- Use filter only for exact metadata containment; it is not a general query
+  language.
+- Do not retry 400/401/403/422 without changing the request.
+- For 429, honor Retry-After.
+- For 502/503, use bounded backoff. requestId is not yet an idempotency key.
+
+## 9. Examples
+
+Upsert:
+
+curl -X POST https://gateway.dream-team.works/v1/vectors/upsert   -H "X-App-Client-Key: <40 hex>"   -H "Content-Type: application/json"   -d '{"requestId":"5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","vectors":[{"id":"doc-1","values":[0.1,0.2,0.3],"metadata":{"source":"faq"}}]}'
+
+Query:
+
+curl -X POST https://gateway.dream-team.works/v1/vectors/query   -H "X-App-Client-Key: <40 hex>"   -H "Content-Type: application/json"   -d '{"requestId":"6f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","vector":[0.1,0.2,0.3],"topK":5}'
+
+Delete:
+
+curl -X POST https://gateway.dream-team.works/v1/vectors/delete   -H "X-App-Client-Key: <40 hex>"   -H "Content-Type: application/json"   -d '{"requestId":"7f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","ids":["doc-1"]}'

@@ -1,0 +1,248 @@
+# MemeChat Gateway - Chat Stream
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/02-request-lifecycle-and-states.txt, llm/09-errors-and-http-status.txt
+
+## 1. Endpoint
+
+POST /v1/chat/stream
+Content-Type: application/json
+Accept: text/event-stream
+
+Authentication: X-App-Client-Key required.
+
+Streaming transport: Server-Sent Events (SSE), one HTTP response.
+
+## 2. Request body
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "capability": "llm",
+  "messages": [
+    { "role": "system", "text": "You are concise." },
+    { "role": "user", "text": "Say hello." }
+  ],
+  "image": null,
+  "reasoning": false,
+  "maxOutputTokens": 256,
+  "language": "en"
+}
+
+Fields:
+
+requestId
+  Required. Must be a UUID. Correlation identifier; not a public idempotency
+  key. It is echoed in SSE meta.
+
+capability
+  Optional. One of: llm, chat.standard, chat.premium.
+  Default: llm.
+  chat.standard/chat.premium are legacy compatibility names.
+  Any other value returns 400 INVALID_REQUEST.
+
+messages
+  Required. 1 to 64 entries.
+  Each entry:
+    role: system | user | assistant (case-insensitive; trimmed)
+    text: non-empty after trimming
+  Total text length across messages must be at most 16,000 bytes. This is a
+  gateway limit; provider limits may be lower.
+
+image
+  Must be null or absent. Any non-null image object currently returns
+  400 INVALID_REQUEST with "image input is not implemented yet".
+
+reasoning
+  Optional boolean, default false.
+  If true and capability=chat.standard, returns 400 INVALID_REQUEST.
+  If true, the gateway may forward thinking events when the upstream emits
+  reasoning_content.
+
+maxOutputTokens
+  Optional integer.
+  Default: 512.
+  Clamped to 1024 for llm/chat.standard and 4096 for chat.premium.
+  Non-positive values use the default.
+
+language
+  Optional. Accepted but currently ignored by the chat handler.
+
+Request body max: 2 MiB.
+
+## 3. Success response
+
+HTTP 200
+Content-Type: text/event-stream
+Cache-Control: no-cache
+X-Accel-Buffering: no
+X-Credits-Charged: 0
+
+The response is a sequence of SSE events. Each event has:
+
+  event: <name>
+  data: <one-line JSON>
+  blank line
+
+The gateway also emits comment heartbeats:
+
+  : ping
+
+at approximately 15 second intervals.
+
+### Event: meta
+
+Always first.
+
+event: meta
+data: {"requestId":"5f2c...","capability":"llm","reserved":0,"balanceAfterReserve":0}
+
+Fields:
+- requestId: the body requestId
+- capability: the effective capability string (llm, chat.standard, or chat.premium)
+- reserved: currently 0
+- balanceAfterReserve: currently 0
+
+### Event: thinking
+
+Optional. Only when reasoning=true and the upstream emits
+reasoning_content.
+
+event: thinking
+data: {"text":"..."}
+
+### Event: delta
+
+Zero or more answer fragments.
+
+event: delta
+data: {"text":"..."}
+
+### Event: usage
+
+Sent after the upstream stream completes normally.
+
+event: usage
+data: {"inputTokens":34,"outputTokens":8,"creditsCharged":0}
+
+inputTokens/outputTokens are provider-reported values when present; they may be
+0 if the provider omitted usage.
+
+### Event: done
+
+Sent after usage.
+
+event: done
+data: {"finishReason":"stop","balanceAfterCommit":0}
+
+finishReason is the provider finish reason, or "stop" by default.
+
+### Event: error
+
+Sent only after HTTP 200 and the stream has started.
+
+event: error
+data: {"code":"UPSTREAM_ERROR","message":"provider stream failed","creditsRefunded":false}
+
+Current creditsRefunded is false because no credits are reserved.
+
+## 4. Pre-stream errors
+
+These use normal HTTP status codes and the standard error envelope. No SSE
+body is sent.
+
+HTTP 400 INVALID_REQUEST
+  Invalid JSON; body too large? (body too large uses 422); invalid capability;
+  invalid role; empty text; image present; reasoning on chat.standard;
+  message count outside 1..64.
+
+HTTP 401 UNAUTHENTICATED
+  Missing/invalid/unknown/disabled app-client key.
+
+HTTP 403 CAPABILITY_NOT_IN_PLAN
+  The app client has no enabled llm route.
+
+HTTP 422 PAYLOAD_TOO_LARGE
+  Total chat text exceeds 16,000 bytes, or the JSON body exceeds 2 MiB.
+
+HTTP 429 RATE_LIMITED
+  Not currently produced by the chat path. A provider 429 is a non-200
+  upstream response and is currently mapped to 502 UPSTREAM_ERROR.
+
+HTTP 502 UPSTREAM_ERROR
+  Provider request failed, returned non-200, or the stream failed before any
+  SSE bytes were sent.
+
+HTTP 503 CAPABILITY_DISABLED
+  Provider/model disabled, credential missing/unreadable, or chat provider not
+  configured.
+
+HTTP 500 INTERNAL
+  Unexpected gateway error. Include X-Request-Id when reporting.
+
+## 5. Mid-stream failures
+
+After event: meta, HTTP status is already 200. A failure is delivered as:
+
+event: error
+data: {"code":"UPSTREAM_ERROR","message":"provider stream failed","creditsRefunded":false}
+
+Then the stream ends. The gateway does not send a done event after an error.
+
+A client disconnect may close the stream without an error event.
+
+## 6. Client state mapping
+
+Suggested app states:
+
+  CONNECTING       before HTTP 200
+  META             after meta
+  THINKING         after thinking (optional)
+  ANSWERING        after first delta
+  USAGE            after usage
+  COMPLETE         after done
+  FAILED           on pre-stream HTTP error or error event
+  CANCELLED        on client disconnect / user stop
+
+Do not display provider error bodies. They are not sent.
+
+## 7. Retry rules
+
+- 400/401/403/422: do not retry; fix request, key, route, or payload.
+- 429 is not currently produced by chat; a provider 429 is 502 here.
+- 502/503: retry with bounded exponential backoff. A retry can invoke the
+  provider again because public requestId is not yet an idempotency key.
+- 500: retry once, then report the requestId.
+- Stream error event: do not automatically replay the same request; the user
+  may have already seen partial output.
+
+## 8. Example success stream
+
+event: meta
+data: {"requestId":"5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","capability":"llm","reserved":0,"balanceAfterReserve":0}
+
+event: delta
+data: {"text":"Hello"}
+
+event: delta
+data: {"text":"!"}
+
+event: usage
+data: {"inputTokens":12,"outputTokens":2,"creditsCharged":0}
+
+event: done
+data: {"finishReason":"stop","balanceAfterCommit":0}
+
+## 9. Example pre-stream error
+
+HTTP 403
+Content-Type: application/json; charset=utf-8
+
+{
+  "code": "CAPABILITY_NOT_IN_PLAN",
+  "message": "app client is not allowed to use the llm ability",
+  "requestId": "b310887a-8bdc-457f-8a6d-f18f06b67e46",
+  "details": {
+    "capability": "llm",
+    "clientId": "a43fc782-2cb6-4689-ac9b-3034341bc398"
+  }
+}

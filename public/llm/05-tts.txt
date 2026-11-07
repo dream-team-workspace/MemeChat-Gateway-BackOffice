@@ -1,0 +1,149 @@
+# MemeChat Gateway - Text to Speech
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/09-errors-and-http-status.txt
+
+## 1. Endpoint
+
+POST /v1/tts
+Content-Type: application/json
+Accept: audio/*
+
+Authentication: X-App-Client-Key required.
+
+The response is streamed audio. The gateway does not buffer the full audio and
+does not write it to disk.
+
+## 2. Request body
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "text": "Hello from MemeChat.",
+  "voice": "default",
+  "format": "mp3"
+}
+
+Fields:
+
+requestId
+  Required. UUID. Correlation identifier; not an idempotency key.
+
+text
+  Required. 1 to 5,000 Unicode characters after trimming; must not be
+  whitespace-only.
+
+voice
+  Optional. If absent, empty, or "default", the gateway uses the selected
+  provider/model default voice. Explicit values must match:
+  ^[A-Za-z0-9_-]{1,64}$
+  Do not assume a voice ID is portable across providers.
+
+format
+  Optional. mp3 or wav (case-insensitive). Default: mp3.
+  The gateway does not transcode; it returns the format the provider produces.
+
+Request body max: 64 KiB.
+
+## 3. Success response
+
+HTTP 200
+Content-Type: audio/mpeg       (format=mp3)
+  or
+Content-Type: audio/wav        (format=wav)
+Cache-Control: no-store
+X-Accel-Buffering: no
+X-Credits-Charged: 0
+Transfer-Encoding: chunked (typically)
+No Content-Length.
+
+The body is the audio bytes. It is streamed in bounded chunks.
+
+The response includes the normal X-Request-Id header. The body requestId is not
+echoed in the audio response.
+
+## 4. Response states
+
+HTTP 200
+  Audio streamed successfully.
+
+HTTP 400 INVALID_REQUEST
+  Invalid JSON, missing/invalid requestId, empty text, invalid voice pattern,
+  invalid format, or extra JSON values after the object.
+
+HTTP 401 UNAUTHENTICATED
+  Missing/invalid/unknown/disabled app-client key.
+
+HTTP 403 CAPABILITY_NOT_IN_PLAN
+  The app client has no tts ability grant.
+
+HTTP 422 PAYLOAD_TOO_LARGE
+  Request body exceeds 64 KiB, or text exceeds 5,000 characters.
+
+HTTP 429 RATE_LIMITED
+  Provider rate limit. Retry-After and details.retryAfterSeconds are set when
+  known.
+
+HTTP 502 UPSTREAM_ERROR
+  Provider failed, returned a non-200 status, returned an unexpected content
+  type, or returned no audio. Provider response bodies are not returned.
+
+HTTP 503 CAPABILITY_DISABLED
+  Provider/model disabled, credential missing/unreadable, or provider
+  authentication failed. A missing tts route returns 403 CAPABILITY_NOT_IN_PLAN.
+
+HTTP 500 INTERNAL
+  Unexpected gateway error. Report X-Request-Id.
+
+## 5. Error envelope
+
+Pre-stream failures use:
+
+Content-Type: application/json; charset=utf-8
+
+{
+  "code": "CAPABILITY_DISABLED",
+  "message": "tts is not configured",
+  "requestId": "16fa2fca-1552-4593-9804-6315ee424cb3"
+}
+
+Possible details:
+- retryAfterSeconds for 429
+- no provider body or credential is ever included
+
+## 6. Streaming behavior
+
+- The gateway waits for a provider success status before writing the audio
+  headers. If the provider fails before audio, the client receives a normal
+  JSON error, not a partial audio body.
+- Once audio bytes are written, a later provider read failure ends the stream;
+  the HTTP status cannot change.
+- If the client disconnects, the gateway stops copying and closes the provider
+  body.
+- No audio is stored or logged.
+
+## 7. Client rules
+
+- Always send a UUID requestId.
+- Do not assume the default voice. Read the selected route/model or use
+  "default".
+- Do not request wav unless your client can play it; the provider may not
+  support every format.
+- Treat the response as binary; do not attempt to JSON-decode it.
+- Do not cache audio under a shared key; use Cache-Control: no-store.
+- Credits are not charged today; X-Credits-Charged is 0.
+
+## 8. Example
+
+curl -X POST https://gateway.dream-team.works/v1/tts   -H "X-App-Client-Key: <40 hex>"   -H "Content-Type: application/json"   -d '{"requestId":"5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","text":"Hello","voice":"default","format":"mp3"}'   --output hello.mp3
+
+Expected:
+- HTTP 200
+- Content-Type: audio/mpeg
+- non-empty audio/mpeg body
+
+## 9. Current provider note
+
+The active TTS route in the live deployment uses ElevenLabs. Kokoro is
+registered but disabled because its configured Salad endpoint is currently
+unreachable. This is server configuration, not part of the client contract;
+clients call the tts ability and do not choose the provider.

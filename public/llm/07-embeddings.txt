@@ -1,0 +1,199 @@
+# MemeChat Gateway - Embeddings
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/09-errors-and-http-status.txt
+
+## 1. Endpoint
+
+POST /v1/embeddings
+Content-Type: application/json
+Accept: application/json
+
+Authentication: X-App-Client-Key required.
+
+The gateway selects the Voyage model from the app client's embeddings route.
+The request's quality selects a server-side profile; the app does not name a
+provider model.
+
+## 2. Request body
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "input": ["first document", "second document"],
+  "inputType": "document",
+  "quality": "balanced",
+  "dimensions": 1024,
+  "dtype": "float",
+  "encoding": "base64",
+  "truncate": false,
+  "inputTokens": 20
+}
+
+Fields:
+
+requestId
+  Required. UUID. Correlation identifier; not an idempotency key.
+
+input
+  Required. Either a string or an array of strings.
+  One to 1,000 inputs. Each input must be non-empty after trimming.
+
+inputType
+  Required. One of: query, document, none.
+  query/document follow retrieval semantics; none is for clustering or
+  classification without a retrieval prefix.
+
+quality
+  Optional. fast | balanced | quality | code.
+  Default: balanced.
+  The quality selects the server-side profile and the cost metadata; the actual
+  provider model is the route model.
+
+dimensions
+  Optional. Default: 1024.
+  Allowed: 256, 512, 1024, 2048.
+
+dtype
+  Optional. Default: float.
+  Allowed: float, int8, uint8, binary, ubinary.
+
+encoding
+  Optional. Default: base64.
+  Allowed: base64, json.
+  Base64 is strongly recommended for large responses.
+
+truncate
+  Optional boolean. Passed to the provider; provider behavior applies.
+
+inputTokens
+  Optional non-negative integer. Client-declared token count used by the future
+  reservation path; currently analytics only.
+
+## 3. Success response
+
+HTTP 200
+Content-Type: application/json; charset=utf-8
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "capability": "embeddings.balanced",
+  "dimensions": 1024,
+  "dtype": "float",
+  "encoding": "base64",
+  "data": [
+    { "index": 0, "embedding": "<base64 string>" },
+    { "index": 1, "embedding": "<base64 string>" }
+  ],
+  "usage": {
+    "inputTokens": 20,
+    "totalTokens": 20
+  },
+  "creditsCharged": 0
+}
+
+Fields:
+
+capability
+  "embeddings." + the effective quality.
+
+dimensions
+  Effective dimensions.
+
+dtype
+  Effective dtype.
+
+encoding
+  Effective encoding.
+
+data
+  Array in input order. index is the zero-based input index.
+  embedding is:
+    - a base64 string when encoding=base64
+    - a JSON array of numbers when encoding=json
+  Treat it as an opaque encoded vector; decode according to dtype.
+
+usage.inputTokens / totalTokens
+  Provider-reported token counts.
+
+creditsCharged
+  Currently always 0.
+
+## 4. Response states
+
+HTTP 200
+  Embeddings returned.
+
+HTTP 400 INVALID_REQUEST
+  Invalid JSON; missing/invalid requestId; empty input; unknown quality;
+  missing/unknown inputType; dimensions not allowed; dtype not allowed;
+  encoding not base64/json; negative inputTokens; extra JSON after the object.
+
+HTTP 401 UNAUTHENTICATED
+  Missing/invalid/unknown/disabled app-client key.
+
+HTTP 403 CAPABILITY_NOT_IN_PLAN
+  The app client has no embeddings route/grant for the requested quality.
+  Because the route is per ability, a routed embeddings ability normally grants
+  all qualities; the check is still performed at the ability level.
+
+HTTP 422 PAYLOAD_TOO_LARGE
+  More than 1,000 inputs; estimated tokens exceed the selected profile limit;
+  request body exceeds 8 MiB; response would exceed 8 MiB.
+
+HTTP 429 RATE_LIMITED
+  Provider rate limit. Retry-After and details.retryAfterSeconds are set when
+  known.
+
+HTTP 502 UPSTREAM_ERROR
+  Provider failed or returned a malformed vector response. Vectors must match
+  input count, have unique in-range indices, be non-empty, and include positive
+  usage tokens.
+
+HTTP 503 CAPABILITY_DISABLED
+  Provider/model disabled, credential missing/unreadable, or provider
+  authentication failed. A missing embeddings route returns 403
+  CAPABILITY_NOT_IN_PLAN.
+
+HTTP 500 INTERNAL
+  Unexpected gateway error. Report X-Request-Id.
+
+## 5. Limits
+
+- Max inputs: 1,000.
+- Max request body: 8 MiB.
+- Max response body: 8 MiB.
+- Request timeout: 30 seconds, including provider retries and short limiter
+  waits.
+- Dimensions: 256, 512, 1024, 2048.
+- Dtypes: float, int8, uint8, binary, ubinary.
+- Encodings: base64, json.
+
+Profile token limits are enforced by the service:
+- fast: 1,000,000 tokens per request
+- balanced: 320,000
+- quality: 120,000
+- code: 120,000
+
+The provider account may enforce lower limits and return 429.
+
+## 6. Client rules
+
+- Always send inputType explicitly.
+- Prefer encoding=base64 for responses larger than a few vectors.
+- Do not assume a fixed dimension; read the response dimensions.
+- Do not assume the provider model; it is server-selected by the route.
+- Decode base64 according to dtype. For binary/ubinary, unpack bits as your
+  SDK defines.
+- Do not retry 400/401/403/422 without changing the request.
+- For 429, honor Retry-After.
+- For 502/503, use bounded backoff. requestId is not yet idempotent, so a retry
+  can invoke the provider again.
+
+## 7. Example
+
+curl -X POST https://gateway.dream-team.works/v1/embeddings   -H "X-App-Client-Key: <40 hex>"   -H "Content-Type: application/json"   -d '{"requestId":"5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","input":["gateway validation"],"inputType":"document","encoding":"json"}'
+
+Expected:
+- HTTP 200
+- data has one entry
+- creditsCharged = 0
