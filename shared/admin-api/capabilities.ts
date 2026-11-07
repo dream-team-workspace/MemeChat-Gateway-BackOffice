@@ -29,7 +29,13 @@ export const capabilitySchema = z.object({
   fairUse: z.record(z.string(), z.unknown()),
   minAppVersion: z.string().nullable(),
   revision: z.number().int().nonnegative(),
-  providers: z.array(providerRouteSchema),
+  // The gateway can serialize an empty Go slice as `null` (for example the
+  // new `vector` capability has no legacy provider chain). Normalize it so one
+  // empty legacy profile cannot fail the entire capability list.
+  providers: z
+    .array(providerRouteSchema)
+    .nullable()
+    .transform((value) => value ?? []),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
