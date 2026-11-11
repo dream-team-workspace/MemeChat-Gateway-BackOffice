@@ -1,0 +1,189 @@
+# MemeChat Gateway - Request Lifecycle and States
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/09-errors-and-http-status.txt
+
+## 1. State model
+
+A public request moves through these states:
+
+1. RECEIVED
+   HTTP request accepted by net/http.
+
+2. AUTHENTICATED
+   X-App-Client-Key resolved to an enabled app client.
+
+3. AUTHORIZED
+   The app client has an enabled route for the requested ability.
+
+4. VALIDATED
+   JSON or multipart body and all capability-specific limits pass.
+
+5. ROUTE_RESOLVED
+   The provider, model, base URL, and credential are available and enabled.
+
+6. PROVIDER_CALLED
+   The gateway sent the request to the provider.
+
+7. COMPLETED
+   A success response or a complete SSE stream was written.
+
+Failure states:
+
+- FAILED_PRE_STREAM: normal HTTP error before any success body/SSE bytes.
+- FAILED_MID_STREAM: SSE error event after HTTP 200 and meta were sent.
+- CLIENT_DISCONNECTED: the client closed the connection; no error response is
+  guaranteed. Chat stops reading upstream. No credit settlement is performed
+  because credits are not wired.
+
+## 2. Where each failure is detected
+
+AUTHENTICATED:
+  401 UNAUTHENTICATED.
+
+AUTHORIZED:
+  Chat: 403 CAPABILITY_NOT_IN_PLAN when no llm route.
+  Vector: 403 CAPABILITY_NOT_IN_PLAN when no vector route.
+  TTS/STT/Embeddings: 403 CAPABILITY_NOT_IN_PLAN for a missing route;
+  503 CAPABILITY_DISABLED when the route exists but the provider is unavailable.
+
+VALIDATED:
+  400 INVALID_REQUEST for malformed JSON, invalid fields, bad UUID, bad role,
+  invalid voice/format, missing file, etc.
+  422 PAYLOAD_TOO_LARGE for body, text, audio, vector, or embedding-size
+  violations.
+
+ROUTE_RESOLVED:
+  503 CAPABILITY_DISABLED when the provider/model is disabled, the credential
+  is missing or unreadable, or no provider target exists.
+
+PROVIDER_CALLED:
+  429 RATE_LIMITED when the provider returns a rate limit on TTS,
+  embeddings, or vector. Chat currently maps any non-200 provider response to
+  502 UPSTREAM_ERROR.
+  502 UPSTREAM_ERROR when the provider fails, returns a non-200 response, or
+  returns an invalid body shape.
+  503 CAPABILITY_DISABLED for provider authentication failures in TTS, STT,
+  embeddings, and vector paths that map auth errors to unavailable.
+
+## 3. Chat stream state machine
+
+SSE response states, in order:
+
+IDLE (connection not yet open)
+  -> META_SENT
+  -> THINKING / DELTA (zero or more)
+  -> USAGE_SENT
+  -> DONE
+
+Error branch:
+
+  META_SENT -> ERROR_SENT -> END
+
+Heartbeats are comment lines:
+
+  : ping
+
+They can appear between any events and are not JSON.
+
+Event names and meanings:
+
+- meta: first event; requestId, capability, reserved, balanceAfterReserve.
+- thinking: optional; only when the client asked reasoning=true and the
+  provider emitted reasoning content.
+- delta: answer text fragment.
+- usage: token counts and creditsCharged.
+- done: finishReason and balanceAfterCommit.
+- error: mid-stream failure code/message/creditsRefunded.
+
+Once HTTP 200 and the first SSE bytes are sent, the HTTP status cannot change.
+A mid-stream failure is therefore an error event, not a 5xx response.
+
+## 4. Route and provider states
+
+An ability is available only when all are true:
+
+  app client enabled
+  route exists for ability
+  route.enabled = true
+  provider exists
+  provider.enabled = true
+  model exists for that provider and ability
+  model.enabled = true
+  credential can be resolved and decrypted
+
+If any condition fails:
+
+- chat returns 503 CAPABILITY_DISABLED (except a missing route, which is 403)
+- vector returns 503 CAPABILITY_DISABLED (except a missing route, which is 403)
+- tts/stt/embeddings return 503 CAPABILITY_DISABLED
+- capabilities manifest simply omits the unavailable ability
+
+There is no automatic fallback to another provider/model in this runtime.
+
+## 5. Cached states
+
+Client lookup cache:
+  L1 in-process, bounded, positive TTL 20 seconds, negative TTL 5 seconds.
+  L2 Redis hash field per digest.
+
+Provider registry cache:
+  60 second snapshot TTL, stale-on-failure, bounded refresh backoff.
+
+Capability manifest:
+  per-client pre-serialized body, 30 second TTL, ETag, invalidated by admin
+  mutations on the handling instance. Other instances can serve their cached
+  manifest for up to the TTL.
+
+These caches affect how quickly a key rotation, client disable, route change,
+or provider change becomes visible. Do not assume instantaneous global
+consistency.
+
+## 6. Idempotency state
+
+Current public capabilities are not idempotent by requestId:
+
+- chat can invoke the provider again
+- tts can synthesize again
+- stt can transcribe again
+- embeddings can embed again
+- vector upsert is naturally repeatable for the same IDs; vector delete is
+  idempotent for missing IDs but still returns the requested count
+
+requestId is used for correlation and logging. It is not a public deduplication
+contract today.
+
+## 7. Cancellation and disconnect
+
+- Provider calls use the incoming request context.
+- If the client disconnects, the upstream request is canceled where supported.
+- Chat SSE writes fail and the handler stops reading.
+- No credit refund occurs because no credit reservation exists.
+- TTS/STT/embeddings/vector requests may be canceled mid-provider call; the
+  client receives no successful response.
+
+## 8. State combinations and client action
+
+| State | HTTP | Client action |
+|---|---|---|
+| Authenticated, validated, provider success | 200 | Read response/stream |
+| Missing/invalid key | 401 | Fix key; no retry |
+| No route for ability | 403 | Operator assigns route; no retry |
+| Invalid field/body | 400 | Fix request; no retry |
+| Payload too large | 422 | Reduce input; no retry |
+| Provider rate limit | 429 | Wait Retry-After; retry safe-ish |
+| Provider failure | 502 | Retry with backoff; may duplicate work |
+| Provider/model unavailable | 503 | Operator fixes config; retry later |
+| Unexpected gateway bug | 500 | Report requestId; retry once |
+| Stream error after 200 | 200 + error event | Treat as failed; no HTTP retry of partial stream |
+| Client disconnect | none | Reconnect if product wants; may duplicate |
+
+## 9. Correlation fields
+
+- X-Request-Id: request-scoped gateway ID, echoed in the response header.
+- Body requestId: client-generated UUID, used by capability code and logs.
+- SSE meta.requestId: the body requestId.
+- Error envelope requestId: the gateway X-Request-Id, not necessarily the body
+  requestId.
+
+Keep both IDs in client logs when diagnosing.

@@ -1,0 +1,84 @@
+# MemeChat Gateway - Reserved and Not Implemented
+
+Parent index: llm.txt
+Related: llm/09-errors-and-http-status.txt
+
+## 1. Rule
+
+A reserved route is mounted but returns:
+
+HTTP 501
+Content-Type: application/json; charset=utf-8
+
+{
+  "code": "NOT_IMPLEMENTED",
+  "message": "endpoint not implemented yet",
+  "requestId": "<gateway request id>"
+}
+
+The route still goes through app-client authentication because it is under /v1.
+A missing or invalid key returns 401 before the 501.
+
+## 2. Reserved public routes
+
+GET /v1/account
+  Designed for plan, entitlements, credit balance, fair-use counters, and
+  limits. Not implemented in the live gateway.
+  Current response with a valid key: 501 NOT_IMPLEMENTED.
+
+GET /v1/requests/{requestId}
+  Designed for settlement state and reconciliation. Not implemented.
+  Current response with a valid key: 501 NOT_IMPLEMENTED.
+
+POST /v1/feedback
+  Designed for quality feedback and optional consent-gated export. Not
+  implemented.
+  Current response with a valid key: 501 NOT_IMPLEMENTED.
+
+GET /v1/consent
+  Designed for consent state. Not implemented.
+  Current response with a valid key: 501 NOT_IMPLEMENTED.
+
+PUT /v1/consent
+  Designed for consent updates. Not implemented.
+  Current response with a valid key: 501 NOT_IMPLEMENTED.
+
+## 3. Current credit-related consequences
+
+Because these routes are not implemented:
+
+- Clients cannot read a credit balance from the gateway.
+- Clients cannot read plan entitlements from the gateway.
+- Clients cannot reconcile a request's billing state.
+- Clients cannot read or set consent.
+- Clients cannot submit feedback through the gateway.
+
+The live capability endpoints report zero charged credits. Do not build a
+production billing UI that depends on these endpoints yet.
+
+## 4. Unknown routes
+
+An unknown path such as GET /v1/not-a-route may be handled by Go ServeMux and
+return a plain-text 404, not the JSON error envelope. Do not assume every 404 is
+JSON.
+
+## 5. Internal endpoints
+
+The following exist for operators/infrastructure and are not part of the public
+contract:
+
+- /internal/admin/*
+- /internal/ai/complete
+- /internal/rc/webhook
+- /internal/jobs/*
+
+Do not call these from an application. They use operator or internal
+credentials and are not documented for public use.
+
+## 6. Client handling
+
+- Treat 501 as a feature-not-available state, not a transient failure.
+- Do not retry 501 in a loop.
+- Feature-detect by handling 501 and falling back to local/known behavior.
+- Do not send an app-client key to a path outside the documented public
+  surface.

@@ -1,0 +1,201 @@
+# MemeChat Gateway - Capabilities Manifest
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/10-headers-limits-and-caching.txt
+
+## 1. Endpoint
+
+GET /v1/capabilities
+
+Authentication: X-App-Client-Key required.
+
+Purpose: return the abilities routed to this app client, the selected public
+provider/model identity, pricing metadata, and the legacy capability profiles.
+
+## 2. Request headers
+
+  X-App-Client-Key: <40 hex>          required
+  If-None-Match: "<etag>"             optional
+
+No request body.
+
+## 3. Success response
+
+HTTP 200
+Content-Type: application/json; charset=utf-8
+ETag: "<sha256 hex>"
+Cache-Control: private, no-cache
+Vary: X-App-Client-Key
+
+{
+  "revision": "2026-11-07T00:00:00Z",
+  "abilities": [
+    {
+      "id": "llm",
+      "displayName": "Language model",
+      "kind": "chat",
+      "provider": { "id": "opencode", "displayName": "OpenCode" },
+      "model": {
+        "id": "deepseek-v4.1-flash",
+        "displayName": "DeepSeek V4.1 Flash"
+      },
+      "streaming": "sse",
+      "maxOutputTokens": 1024,
+      "supportsReasoning": false,
+      "supportsImage": false,
+      "cost": { "unit": "turn", "credits": 1, "per": 1 },
+      "limits": { "maxOutputTokens": 1024 }
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "chat.standard",
+      "kind": "chat",
+      "displayName": "Chat Standard",
+      "streaming": "sse",
+      "supportsReasoning": false,
+      "supportsImage": false,
+      "costUnit": "turn",
+      "costCredits": 1,
+      "costPer": 1,
+      "limits": {},
+      "minAppVersion": null,
+      "revision": 1,
+      "updatedAt": "2026-11-07T00:00:00Z"
+    }
+  ]
+}
+
+## 4. Field meanings
+
+revision
+  Latest updatedAt among the legacy capability definitions, formatted as
+  RFC 3339 UTC. Empty string if there are no definitions. It is not a global
+  provider/model catalog revision. Use ETag for cache validation.
+
+abilities
+  Only the abilities this app client has enabled routes for, in fixed order:
+  llm, tts, stt, embeddings, vector.
+  An unrouted ability is omitted, not returned with enabled=false.
+
+abilities[].id
+  llm | tts | stt | embeddings | vector
+
+abilities[].displayName
+  Human-readable ability name.
+
+abilities[].kind
+  chat | tts | stt | embeddings | vector
+
+abilities[].provider
+  { "id": "...", "displayName": "..." }
+  Public provider identity. No endpoint or credential is exposed.
+
+abilities[].model
+  { "id": "...", "displayName": "..." }
+  Public model identity. This is the model selected by the app-client route.
+
+abilities[].streaming
+  For llm: "sse".
+  For other abilities: the legacy capability profile value, usually "none".
+  If the profile is empty, "none" is returned.
+
+abilities[].maxOutputTokens
+  Only present for llm. 1024 for a standard profile, 4096 for a premium
+  reasoning profile. Omitted for non-llm abilities.
+
+abilities[].supportsReasoning
+  Whether the selected model advertises supportsReasoning.
+
+abilities[].supportsImage
+  Whether the selected legacy profile advertises image support. Image input is
+  currently rejected at the chat endpoint even when this flag is true.
+
+abilities[].cost
+  { unit, credits, per } from the selected provider model. Legacy shape.
+
+abilities[].limits
+  Raw JSON from the legacy capability profile. May be absent or empty.
+
+capabilities
+  Legacy capability definitions retained for older clients. Includes all
+  definitions, not only routed abilities. Each entry has:
+
+  id, kind, displayName, streaming, supportsReasoning, supportsImage,
+  costUnit, costCredits, costPer, limits, minAppVersion, revision, updatedAt
+
+## 5. Conditional requests and caching
+
+The gateway computes a SHA-256 over the exact response body and returns it as a
+strong ETag.
+
+If the request includes:
+
+  If-None-Match: "<current etag>"
+
+the gateway returns:
+
+  HTTP 304
+  ETag: "<current etag>"
+  no body
+
+304 is a success for caching purposes. It means the cached manifest is still
+valid; do not re-render or refetch immediately.
+
+Recommended client behavior:
+
+1. Fetch once at app start.
+2. Store the body and ETag.
+3. Send If-None-Match on refresh.
+4. On 304, keep the cached body.
+5. On 200, replace the body and ETag.
+
+Do not cache the manifest in a shared public cache. The response varies by
+X-App-Client-Key; Vary is set accordingly. The gateway sends
+Cache-Control: private, no-cache.
+
+Invalidation:
+
+- App-client route changes invalidate the local instance's manifest cache.
+- Provider/model catalog changes invalidate the local instance's manifest cache.
+- Other gateway instances may serve their own cached manifest for up to 30
+  seconds. Treat the manifest as eventually consistent across instances.
+
+## 6. Response states
+
+HTTP 200
+  Manifest returned.
+
+HTTP 304
+  If-None-Match matched; no body.
+
+HTTP 401 UNAUTHENTICATED
+  Missing, malformed, unknown, or disabled app-client key.
+
+HTTP 500 INTERNAL
+  Capability store or registry unexpectedly failed. Report X-Request-Id.
+
+HTTP 503 CAPABILITY_DISABLED
+  The manifest service is not configured. This is an operator problem.
+
+## 7. Client rules
+
+- Never use the manifest to call a provider directly.
+- Never expect provider endpoints or credentials in the response.
+- Use abilities[] for the current route; do not hardcode a model ID.
+- Treat an omitted ability as unavailable for this app client.
+- Treat supportsImage as advisory; chat currently rejects image input.
+- The legacy capabilities[] array exists for backward compatibility. New code
+  should use abilities[].
+- The revision field is not a substitute for ETag.
+
+## 8. Example error
+
+HTTP 401
+Content-Type: application/json; charset=utf-8
+
+{
+  "code": "UNAUTHENTICATED",
+  "message": "missing app client key",
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab"
+}
