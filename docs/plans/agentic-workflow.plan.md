@@ -1,7 +1,7 @@
 ---
 plan: agentic-workflow
 prompt: ./agentic-workflow.prompt.txt
-status: in-progress
+status: implemented
 created: 2026-11-14
 updated: 2026-11-14
 branch: feat/agentic
@@ -119,10 +119,11 @@ change.
       `description`; discovery confirmed by the harness catalog update (`stack-reference`).
 - [x] `npm run plans:check` passes for the new prompt/plan pair.
 - [x] Relative links in new/changed Markdown resolve.
-- [x] `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` still pass (no runtime
-      code changed; run to prove the docs/script addition did not break the pipeline).
+- [x] `npm run lint`, `npm run typecheck`, `npm test` (29/29), `npm run build` all pass;
+      `npm run plans:check` passes; separate checks confirm 9 valid skill bundles and 71/71
+      relative links resolve.
 - [x] Commit contains no secrets, `.env`, build output, or IDE files.
-- [x] Push to `origin feat/agentic` and confirm the remote branch.
+- [x] Push to `origin feat/agentic` confirmed; branch tracks `origin/feat/agentic`.
 
 ## 9. Docs and skills to update
 
@@ -153,7 +154,8 @@ change.
       extracted into `.agents/skills/` (§5 step 3; eight skills + references).
 - [x] Prompt bullet 4 — internet research of the pinned stack recorded with official sources
       and version-specific guidance (§5 step 4; `stack-reference`).
-- [x] Prompt bullet 5 — everything committed and pushed to `origin` (§5 step 8; progress log).
+- [x] Prompt bullet 5 — everything committed and pushed to `origin` (commit `f773bf1` on
+      `origin/feat/agentic`; §5 step 8).
 
 ## 12. Progress log
 
@@ -164,7 +166,7 @@ change.
 | 2026-11-14 | Eight repo skills + `.agents/README.md` | done |
 | 2026-11-14 | Stack research and sources | done |
 | 2026-11-14 | Checker, index updates, validation | done |
-| 2026-11-14 | Commit + push to origin | pending |
+| 2026-11-14 | Commit `f773bf1` + push to `origin/feat/agentic`; plan marked implemented | done |
 
 ## 13. References
 
@@ -173,3 +175,4 @@ change.
 - Skills: `.agents/README.md`, `.agents/skills/`
 - Repo rules: `AGENTS.md`, `docs/08-engineering-standards.md`, `docs/10-ci-cd-and-environments.md`
 - Stack: `docs/04-tech-stack.md`, `.agents/skills/stack-reference/references/sources.md`
+- Implementation commit: `f773bf1`; remote: `origin/feat/agentic`
