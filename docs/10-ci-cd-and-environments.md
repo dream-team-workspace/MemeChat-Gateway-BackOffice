@@ -55,6 +55,10 @@ chore/*   ──PR──►     │                 │
 | `chore/*` | `development` | `development` | — | Owner |
 | `hotfix/*` | `master` | `master` + back-merge `development` | Production (after setup) | Incident process |
 
+`feat/<slug>` is accepted as an alias for `feature/<slug>` for agent-work branches
+(e.g. `feat/agentic`); CI and deploy behavior are identical. See
+[docs/plans/README.md](plans/README.md) for the prompt → plan workflow.
+
 Release flow:
 
 1. Feature PR → `development` (squash merge).

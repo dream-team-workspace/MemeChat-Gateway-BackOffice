@@ -3,7 +3,7 @@
 ## Repo status
 
 - **Phase 1 implementation.** The Vite/React operator console, Cloudflare Access login, shared
-  admin contract, and Hono BFF are implemented on `feature/implementation`.
+  admin contract, and Hono BFF are implemented on `development` and deployed from `master`.
 - The BFF is **live-only** and always uses the gateway's Postgres-backed
   `/internal/admin/*` API. There is no mock admin store or fixture fallback in the runtime;
   readiness, capabilities, routing, kill switch, audit, models, ledger, usage, cache, grants,
@@ -27,6 +27,10 @@
 - `console.dream-team.works` is live behind Cloudflare Access; the BFF runs production auth
   and calls the main gateway at `https://gateway.dream-team.works`. CI deploys `master` to
   `/opt/memechat-backoffice`; see [deploy/README.md](deploy/README.md).
+- **Agent workflow.** Repo-local agent skills live in `.agents/skills/` and prompt-driven work
+  goes through `docs/plans/` (`*.prompt.txt` → matching `*.plan.md`). Read the prompt
+  verbatim, write the plan before changing code, and load the relevant skill before editing.
+  See [docs/plans/README.md](docs/plans/README.md) and [.agents/README.md](.agents/README.md).
 
 ## Sources of truth
 
@@ -39,9 +43,12 @@
 7. `docs/14-cloudflare-access.md` — Access/Tunnel setup.
 8. `docs/15-gateway-requests.md` — gateway contract status, remaining write paths, and SQL.
 9. `docs/16-react-architecture.md` — composition, React 19, error boundaries, feature rules.
+10. `docs/plans/` — prompt files (authoritative requests) and their plans (working record).
+11. `.agents/skills/` — agent playbooks distilled from the above; never authoritative.
 
 Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals,
-`docs/03-architecture.md` for structure. Fix docs in the same change.
+`docs/03-architecture.md` for structure. Skills and plans defer to the docs and the code. Fix
+docs — and any stale skill — in the same change.
 
 ## Commands
 
@@ -51,11 +58,32 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
 - `npm test` — live BFF adapter contract tests with a fake upstream gateway; no runtime mock data.
 - `npm run dev:web` / `npm run dev:api` — run one side.
 - `npm run lint` — ESLint; CI PR gate.
+- `npm run plans:check` — verify every `docs/plans/*.prompt.txt` has a plan with the required
+  sections (local/advisory; not a CI gate).
 - `npm run test` — Vitest BFF contract tests.
 - `npm run typecheck` — web + BFF.
 - `npm run build` — typecheck + Vite build + server build.
 - `npm start` — serve `dist/` + API from the built BFF.
 - `npm run preview` — static Vite preview only (no API proxy).
+
+## Agent workflow: prompt → plan
+
+- The user may place a request at `docs/plans/<slug>.prompt.txt`. That file is the
+  authoritative, **verbatim** request: read it in full, never rewrite it, and never infer from
+  the filename.
+- Before changing code, write the matching `docs/plans/<slug>.plan.md` (same stem) from
+  `_template.plan.md`. Quote the requirements, map each to a change and a check, record
+  assumptions/risks, and keep a progress log.
+- One prompt → one plan. Update the plan as work proceeds; mark it `implemented` only after
+  verification and push. Do not silently drop a prompt requirement — record it as an open
+  question or an explicit non-goal.
+- Run `npm run plans:check` to verify prompt/plan pairing before hand-off.
+- Before editing, load the relevant skill from `.agents/skills/`: `project-architecture`,
+  `frontend-feature-workflow`, `bff-and-gateway`, `shared-contract`, `design-system`,
+  `testing-and-quality`, `docs-and-plan-workflow`, `code-style`, or `stack-reference`. Skills
+  are derived playbooks — the docs and code remain authoritative; update a stale skill in the
+  same PR.
+- Full contract: [docs/plans/README.md](docs/plans/README.md).
 
 ## Architecture rules
 
@@ -76,7 +104,9 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
   `X-Firebase-Uid` header; when false it is optional request context only. Never treat the UID
   as proof of identity by itself.
 - Browser data goes through the typed client and Query hooks; no `fetch` in components/pages.
-- Forms use RHF + Zod; mutations are pessimistic for registry and money paths.
+- Forms validate with Zod: the capability profile uses RHF + the custom
+  `src/lib/zod-resolver.ts`; most dialogs use controlled state + `schema.safeParse`. Keep each
+  form internally consistent. Mutations are pessimistic for registry and money paths.
 - Use semantic design tokens only; no raw colors in domain code.
 - Every page needs loading/empty/error states.
 
@@ -97,6 +127,7 @@ Where docs disagree: requirement file wins for behavior, `DESIGN.md` for visuals
 
 - `master` = production deployment branch. Never push directly.
 - `development` = integration branch. Feature PRs target it; pushes currently build only.
-- Work branches: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`, `hotfix/<slug>`.
+- Work branches: `feature/<slug>` (or `feat/<slug>`), `fix/<slug>`, `chore/<slug>`,
+  `hotfix/<slug>`. Agent workflow branches may use `feat/<slug>`.
 - Conventional Commits, squash merge, one logical change per PR.
 - Never commit secrets, `.env` files, session data, or real customer identifiers.
