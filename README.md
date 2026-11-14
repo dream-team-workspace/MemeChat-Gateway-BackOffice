@@ -14,7 +14,8 @@ switches, user ledger/usage, credit grants, and system operations.
 - **Remote:** [dream-team-workspace/MemeChat-Gateway-BackOffice](https://github.com/dream-team-workspace/MemeChat-Gateway-BackOffice)
 - **Gateway backend:** [MemeChat-Gateway](https://github.com/dream-team-workspace/MemeChat-Gateway) (source of truth for the admin API)
 - **Local gateway checkout:** `/home/dani/GolandProjects/MemeChat-Gateway`
-- **Working branch:** `feature/implementation`
+- **Working branch:** `development` (integration). `master` deploys production; agent work uses
+  `feat/<slug>` branches, e.g. `feat/agentic`.
 
 ---
 
@@ -268,6 +269,8 @@ Start with the [documentation index](docs/README.md).
 | [docs/14-cloudflare-access.md](docs/14-cloudflare-access.md) | Access/tunnel setup |
 | [docs/15-gateway-requests.md](docs/15-gateway-requests.md) | Gateway contract status, file activity, remaining email/tier path |
 | [docs/requirements/README.md](docs/requirements/README.md) | Requirement index |
+| [docs/plans/README.md](docs/plans/README.md) | Prompt → plan workflow for agentic work |
+| [.agents/README.md](.agents/README.md) | Repo-local agent skills and playbooks |
 
 ---
 

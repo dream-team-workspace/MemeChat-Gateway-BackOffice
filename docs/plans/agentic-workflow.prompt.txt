@@ -1,0 +1,6 @@
+I need you to create new branch from origin development name feat/agentic and adjust everything according to this:
+- In future, I will give prompt under docs/plans/*.prompt.txt
+- In future, you supposed to read verbatim and comprehensively about the prompt I gave you from the file *.prompt.txt and write plan to *.plan.md.
+- Extract everything about this project structure, architecture, module, code pattern, style writing into .agents/skills.
+- Search from all internet about the tech stack been used by this project and skills according that.
+- When done, push everything to origin
