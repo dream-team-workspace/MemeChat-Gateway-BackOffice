@@ -17,7 +17,7 @@ import { featureFlags } from "@/lib/feature-flags";
 import { getErrorMessage } from "@/platform/api";
 import { cn } from "@/lib/utils";
 
-type KindFilter = "all" | "llm" | "speech" | "embeddings" | "vector";
+type KindFilter = "all" | "llm" | "speech" | "embeddings" | "vector" | "search";
 
 const filters: Array<{ value: KindFilter; label: string }> = [
   { value: "all", label: "All" },
@@ -25,6 +25,7 @@ const filters: Array<{ value: KindFilter; label: string }> = [
   { value: "speech", label: "Speech" },
   { value: "embeddings", label: "Embeddings" },
   { value: "vector", label: "Vector" },
+  { value: "search", label: "Web search" },
 ];
 
 function matchesFilter(provider: ProviderStatus, filter: KindFilter) {

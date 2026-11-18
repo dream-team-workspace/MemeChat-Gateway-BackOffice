@@ -14,7 +14,8 @@ switches, user ledger/usage, credit grants, and system operations.
 - **Remote:** [dream-team-workspace/MemeChat-Gateway-BackOffice](https://github.com/dream-team-workspace/MemeChat-Gateway-BackOffice)
 - **Gateway backend:** [MemeChat-Gateway](https://github.com/dream-team-workspace/MemeChat-Gateway) (source of truth for the admin API)
 - **Local gateway checkout:** `/home/dani/GolandProjects/MemeChat-Gateway`
-- **Working branch:** `feature/implementation`
+- **Working branch:** `development` (integration). `master` deploys production; agent work uses
+  `feat/<slug>` branches, e.g. `feat/agentic`.
 
 ---
 
@@ -23,14 +24,14 @@ switches, user ledger/usage, credit grants, and system operations.
 - **Cloudflare Access login** — identity is read from `/cdn-cgi/access/get-identity`;
   sign-out uses `/cdn-cgi/access/logout`. Local dev uses `VITE_DEV_AUTH_EMAIL`.
 - **Domain-oriented UI** — overview, providers (create/edit, write-only keys, model catalog,
-  health), abilities (five-ability catalog and legacy cost/limits profiles), app clients
+  health), abilities (gateway ability catalog and legacy cost/limits profiles), app clients
   (ability → provider → model routes), models (legacy app picker), users (lookup, ledger,
   usage, activity, grant), operations (health, RevenueCat, cache invalidation), and settings.
 - **Providers** — create and edit a provider, set/replace/remove its API key without a redeploy,
   and manage the models it advertises. Keys are password fields only; the gateway returns a
   masked hint. The browser never receives the plaintext key.
-- **Abilities** — language model, text to speech, speech to text, embeddings, and vector
-  storage. Each ability page lists available providers/models and links to the legacy
+- **Abilities** — language model, text to speech, speech to text, embeddings, vector
+  storage, and Web search when exposed by the gateway. Each ability page lists available providers/models and links to the legacy
   capability cost/limits profiles. The old global provider-chain editor is removed from the
   primary path.
 - **App clients** — create Android/iOS/web/backend clients and choose one provider and model
@@ -72,7 +73,7 @@ switches, user ledger/usage, credit grants, and system operations.
 |---|---|
 | `/login` | Cloudflare Access fallback |
 | `/` | Overview |
-| `/abilities` | Five-ability catalog |
+| `/abilities` | Gateway ability catalog |
 | `/abilities/:abilityId` | Ability providers/models + legacy cost profiles |
 | `/capabilities` | Redirects to `/abilities` |
 | `/capabilities/:capabilityId` | Legacy capability cost/limits profile |
@@ -268,6 +269,8 @@ Start with the [documentation index](docs/README.md).
 | [docs/14-cloudflare-access.md](docs/14-cloudflare-access.md) | Access/tunnel setup |
 | [docs/15-gateway-requests.md](docs/15-gateway-requests.md) | Gateway contract status, file activity, remaining email/tier path |
 | [docs/requirements/README.md](docs/requirements/README.md) | Requirement index |
+| [docs/plans/README.md](docs/plans/README.md) | Prompt → plan workflow for agentic work |
+| [.agents/README.md](.agents/README.md) | Repo-local agent skills and playbooks |
 
 ---
 

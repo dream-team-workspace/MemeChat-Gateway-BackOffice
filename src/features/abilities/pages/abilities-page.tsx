@@ -54,7 +54,7 @@ export function AbilitiesPage() {
       <PageHeader
         eyebrow="Registry"
         title="Abilities"
-        description="The five coarse abilities apps can call, and the providers that can serve them."
+        description="Gateway abilities and the providers that serve them."
         actions={
           <Button
             type="button"

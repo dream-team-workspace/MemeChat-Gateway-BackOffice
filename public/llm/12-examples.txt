@@ -1,0 +1,150 @@
+# MemeChat Gateway - Examples
+
+Parent index: llm.txt
+Base URL: https://gateway.dream-team.works
+Replace <APP_CLIENT_KEY> with a 40-hex app-client key. Never use a provider key
+here.
+
+## 1. Capability manifest
+
+curl -i https://gateway.dream-team.works/v1/capabilities   -H "X-App-Client-Key: <APP_CLIENT_KEY>"
+
+Expected:
+- HTTP 200
+- ETag header
+- abilities[] contains only routed abilities
+- capabilities[] contains legacy definitions
+
+Conditional refresh:
+
+curl -i https://gateway.dream-team.works/v1/capabilities   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H 'If-None-Match: "<ETAG>"'
+
+Expected:
+- HTTP 304
+- no body
+- same ETag
+
+## 2. Chat stream
+
+curl -N https://gateway.dream-team.works/v1/chat/stream   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{
+    "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+    "capability": "llm",
+    "messages": [{"role":"user","text":"Reply with OK."}],
+    "maxOutputTokens": 16
+  }'
+
+Expected:
+- HTTP 200
+- Content-Type: text/event-stream
+- event: meta
+- event: delta (one or more)
+- event: usage
+- event: done
+
+Mid-stream failure after 200:
+
+event: error
+data: {"code":"UPSTREAM_ERROR","message":"provider stream failed","creditsRefunded":false}
+
+## 3. TTS
+
+curl -X POST https://gateway.dream-team.works/v1/tts   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{
+    "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+    "text": "Hello from MemeChat.",
+    "voice": "default",
+    "format": "mp3"
+  }'   --output hello.mp3
+
+Expected:
+- HTTP 200
+- Content-Type: audio/mpeg
+- non-empty audio
+- X-Credits-Charged: 0
+
+## 4. STT
+
+curl -X POST https://gateway.dream-team.works/v1/stt   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -F "requestId=5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab"   -F "durationSeconds=3"   -F "language=en"   -F "file=@hello.mp3;type=audio/mpeg"
+
+Expected:
+- HTTP 200
+- JSON { requestId, text, usage: { seconds }, creditsCharged: 0 }
+
+## 5. Embeddings
+
+curl -X POST https://gateway.dream-team.works/v1/embeddings   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{
+    "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+    "input": ["gateway validation"],
+    "inputType": "document",
+    "quality": "balanced",
+    "encoding": "json"
+  }'
+
+Expected:
+- HTTP 200
+- capability: embeddings.balanced
+- data length equals input length
+- creditsCharged: 0
+
+## 6. Vector upsert
+
+curl -X POST https://gateway.dream-team.works/v1/vectors/upsert   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{
+    "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+    "vectors": [
+      {"id":"doc-1","values":[0.1,0.2,0.3],"metadata":{"source":"faq"}}
+    ]
+  }'
+
+Expected:
+- HTTP 200
+- { requestId, upserted: 1 }
+
+## 7. Vector query
+
+curl -X POST https://gateway.dream-team.works/v1/vectors/query   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{
+    "requestId": "6f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+    "vector": [0.1,0.2,0.3],
+    "topK": 5,
+    "filter": {"source":"faq"}
+  }'
+
+Expected:
+- HTTP 200
+- matches[] ordered by score descending
+
+## 8. Vector delete
+
+curl -X POST https://gateway.dream-team.works/v1/vectors/delete   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{
+    "requestId": "7f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+    "ids": ["doc-1"]
+  }'
+
+Expected:
+- HTTP 200
+- { requestId, deleted: 1 }
+
+## 9. Health and readiness
+
+curl -i https://gateway.dream-team.works/healthz
+# HTTP 200 {"status":"ok"}
+
+curl -i https://gateway.dream-team.works/readyz
+# HTTP 200 {"status":"ready"}
+# or HTTP 503 NOT_READY if Postgres is unreachable
+
+## 10. Error example
+
+A missing key:
+
+curl -i https://gateway.dream-team.works/v1/capabilities
+
+Expected:
+- HTTP 401
+- { "code":"UNAUTHENTICATED", "message":"missing app client key", ... }
+
+A missing route:
+
+curl -i -X POST https://gateway.dream-team.works/v1/tts   -H "X-App-Client-Key: <APP_CLIENT_KEY>"   -H "Content-Type: application/json"   -d '{"requestId":"5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab","text":"hi"}'
+
+If the client has no tts route:
+- HTTP 403 CAPABILITY_NOT_IN_PLAN.
+A 503 CAPABILITY_DISABLED means the route exists but its provider is unavailable.

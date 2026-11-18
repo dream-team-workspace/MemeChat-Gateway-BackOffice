@@ -23,6 +23,13 @@ export function ProviderCredentialCard({
 }) {
   const unreadable = provider.credentialState === "unreadable";
   const missing = provider.credentialState === "missing";
+  const allowsKeyless =
+    provider.kind === "search" &&
+    typeof provider.config.accessMode === "string" &&
+    provider.config.accessMode.toLowerCase() === "keyless" &&
+    typeof provider.config.credential === "string" &&
+    provider.config.credential.trim().toLowerCase() === "optional";
+  const keylessWithoutStoredKey = allowsKeyless && !provider.hasApiKey;
   const state = unreadable
     ? { label: "Credential error", variant: "destructive" as const }
     : missing
@@ -36,7 +43,11 @@ export function ProviderCredentialCard({
       <CardHeader className="flex-row items-start justify-between gap-3">
         <div>
           <CardTitle>Credential</CardTitle>
-          <CardDescription>Write-only API key. Only a masked hint is ever returned.</CardDescription>
+          <CardDescription>
+            {allowsKeyless
+              ? "The gateway can use keyless access when no API key is configured."
+              : "Write-only API key. Only a masked hint is ever returned."}
+          </CardDescription>
         </div>
         <Badge variant={state.variant}>{state.label}</Badge>
       </CardHeader>
@@ -56,9 +67,11 @@ export function ProviderCredentialCard({
                 ? "The saved ciphertext cannot be decrypted with the gateway master key."
                 : missing
                   ? "No database key. The gateway may still use an environment bootstrap key."
-                  : provider.apiKeyUpdatedAt
-                    ? "Updated " + formatDateTime(provider.apiKeyUpdatedAt)
-                    : "Stored in the gateway database."}
+                  : keylessWithoutStoredKey
+                    ? "The gateway can use a bootstrap key when configured."
+                    : provider.apiKeyUpdatedAt
+                      ? "Updated " + formatDateTime(provider.apiKeyUpdatedAt)
+                      : "Stored in the gateway database."}
             </p>
           </div>
         </div>
@@ -73,7 +86,7 @@ export function ProviderCredentialCard({
         {canManage ? (
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={onReplace}>
-              {missing ? "Set key" : "Replace key"}
+              {missing || keylessWithoutStoredKey ? "Set key" : "Replace key"}
             </Button>
             {unreadable ? (
               <Button type="button" size="sm" variant="outline" onClick={onFixGatewayKey}>

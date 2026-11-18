@@ -1,0 +1,145 @@
+# MemeChat Gateway - Headers, Limits, and Caching
+
+Parent index: llm.txt
+Related: llm/03-capabilities.txt, llm/09-errors-and-http-status.txt
+
+## 1. Request headers
+
+X-App-Client-Key
+  Required for /v1. 40 lowercase hex characters. Application secret.
+  See llm/01-authentication.txt.
+
+X-Firebase-Uid
+  Optional. Maximum 128 characters, no whitespace. Required only when the app
+  client has require_firebase_uid=true. Not a verified token.
+
+X-Request-Id
+  Optional UUID. If absent or not a UUID, the gateway generates one. Echoed in
+  the response and logs.
+
+Content-Type
+  application/json for chat, TTS, embeddings, vectors.
+  multipart/form-data for STT.
+  text/event-stream for Accept on chat, and audio/* for Accept on TTS.
+
+If-None-Match
+  Only meaningful for GET /v1/capabilities. Use the previous ETag.
+
+X-App-Version, X-Platform
+  Accepted by the HTTP layer but currently not used by the capability handlers.
+  They are not part of the live contract.
+
+## 2. Response headers
+
+X-Request-Id
+  Every response. The gateway request correlation ID.
+
+ETag
+  GET /v1/capabilities only. Strong validator.
+
+Cache-Control
+  /v1/capabilities: private, no-cache
+  /v1/tts: no-store
+  /v1/chat/stream: no-cache
+  Other JSON: default; do not assume cacheability.
+
+Vary
+  /v1/capabilities: X-App-Client-Key
+
+Retry-After
+  Present on provider 429 responses when known. Seconds.
+
+X-Credits-Charged
+  Chat SSE: 0
+  TTS: 0
+  Embeddings: 0
+  STT: not set
+  Vector: not set
+
+X-Accel-Buffering: no
+  Chat and TTS streaming responses.
+
+## 3. Request body limits
+
+| Endpoint | Limit |
+|---|---|
+| POST /v1/chat/stream | 2 MiB body; 16,000 bytes total message text; 1..64 messages |
+| POST /v1/tts | 64 KiB body; 5,000 Unicode characters |
+| POST /v1/stt | 128 MiB multipart upload; 600 seconds declared duration |
+| POST /v1/embeddings | 8 MiB body; 1,000 inputs; profile token limits |
+| POST /v1/vectors/upsert | 8 MiB body; 100 vectors; 4,096 dimensions |
+| POST /v1/vectors/query | 8 MiB body; 50 topK; 4,096 dimensions |
+| POST /v1/vectors/delete | 8 MiB body; 100 IDs |
+
+Oversized bodies normally return 422 PAYLOAD_TOO_LARGE. Malformed JSON or
+missing fields normally return 400 INVALID_REQUEST.
+
+## 4. Timeouts
+
+- GET /v1/capabilities: normal request timeout; cached on the gateway.
+- POST /v1/chat/stream: streaming; no fixed total timeout in the handler. The
+  client can disconnect and cancel the upstream provider call.
+- POST /v1/tts: provider timeout plus streaming; no fixed total in the handler.
+- POST /v1/stt: provider transcription timeout; upload bounded.
+- POST /v1/embeddings: 30 seconds total.
+- Vector endpoints: 30 seconds total.
+
+Do not assume a generic 30-second limit for chat/TTS; they are streaming.
+
+## 5. Caching rules
+
+### Capability manifest
+
+- ETag is a SHA-256 of the exact body.
+- Send If-None-Match.
+- 304 means unchanged.
+- Cache per app-client key; never in a shared cache.
+- Cache-Control: private, no-cache; Vary: X-App-Client-Key.
+- Other gateway instances may be up to 30 seconds stale after a mutation.
+
+### Other responses
+
+- TTS audio: no-store.
+- Chat SSE: no-cache.
+- Embeddings/STT/vector JSON: do not cache by default; responses may vary by
+  key, route, and time.
+- Do not cache error responses.
+
+## 6. Rate limits
+
+Current gateway behavior:
+
+- There is no global per-user request limiter on /v1.
+- Provider rate limits can return HTTP 429 RATE_LIMITED.
+- When known, the gateway sends Retry-After and
+  details.retryAfterSeconds.
+- TTS, embeddings, and vector paths map provider 429 to the public error
+  envelope.
+- Chat currently maps any provider non-200, including 429, to
+  502 UPSTREAM_ERROR; there is no gateway-wide 429 on chat yet.
+- Retrying after 429 can invoke the provider again because public requestId is
+  not yet an idempotency key.
+
+Future gateway-wide per-user limits are not part of this contract.
+
+## 7. Request IDs and correlation
+
+There are two IDs:
+
+1. X-Request-Id: gateway request ID. Auto-generated if absent.
+2. Body requestId: client UUID for the capability.
+
+Error envelope requestId is the gateway ID. Chat SSE meta.requestId is the body
+requestId. Log both in client diagnostics.
+
+## 8. Compression
+
+The gateway does not promise gzip/br encoding for JSON. Clients should send
+Accept-Encoding as usual; do not rely on compression for correctness.
+
+## 9. Connection behavior
+
+- SSE uses one long-lived HTTP response; flush per event.
+- TTS streams the provider body; no Content-Length.
+- Client disconnect cancels the provider request where supported.
+- There is no WebSocket transport.

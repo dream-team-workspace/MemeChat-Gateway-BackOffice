@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 
 import {
+  abilityLabels,
+  abilityOrder,
   providerInputSchema,
   type Provider,
   type ProviderInput,
@@ -18,14 +20,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { providerErrorHint } from "@/features/providers/lib/provider-errors";
 import { useCreateProvider, useUpdateProvider } from "@/features/providers/mutations/providers.mutations";
 import { getErrorMessage } from "@/platform/api";
-
-const kinds: Array<{ value: ProviderKind; label: string }> = [
-  { value: "llm", label: "Language model" },
-  { value: "tts", label: "Text to speech" },
-  { value: "stt", label: "Speech to text" },
-  { value: "embeddings", label: "Embeddings" },
-  { value: "vector", label: "Vector storage" },
-];
 
 function slugifyProviderId(value: string) {
   return value
@@ -179,8 +173,8 @@ export function ProviderFormDialog({
               value={kind}
               onChange={(event) => setKind(event.target.value as ProviderKind)}
             >
-              {kinds.map((item) => (
-                <option key={item.value} value={item.value}>{item.label}</option>
+              {abilityOrder.map((item) => (
+                <option key={item} value={item}>{abilityLabels[item]}</option>
               ))}
             </Select>
           </FormField>

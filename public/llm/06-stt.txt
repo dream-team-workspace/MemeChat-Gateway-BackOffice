@@ -1,0 +1,136 @@
+# MemeChat Gateway - Speech to Text
+
+Parent index: llm.txt
+Related: llm/01-authentication.txt, llm/09-errors-and-http-status.txt
+
+## 1. Endpoint
+
+POST /v1/stt
+Content-Type: multipart/form-data
+
+Authentication: X-App-Client-Key required.
+
+The gateway forwards the audio to the routed STT provider and returns a
+transcript. Audio is streamed to the provider and is not stored.
+
+## 2. Multipart fields
+
+requestId
+  Required. UUID string.
+
+file
+  Required. Audio file. The multipart part name must be exactly "file".
+  Maximum upload body: 128 MiB.
+  Maximum accepted duration: 600 seconds (10 minutes).
+  Common audio formats are accepted by the provider; the gateway does not
+  transcode. Use a MIME type that matches the file.
+
+durationSeconds
+  Optional. Integer 1 to 600.
+  Used as the client-declared duration for the future reservation path.
+  The provider-reported duration is returned in usage.seconds.
+  If omitted, the provider determines duration.
+
+language
+  Optional language hint. Maximum 16 characters.
+
+## 3. Success response
+
+HTTP 200
+Content-Type: application/json; charset=utf-8
+
+{
+  "requestId": "5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab",
+  "text": "Hello from the gateway validation.",
+  "usage": { "seconds": 3 },
+  "creditsCharged": 0
+}
+
+Fields:
+
+requestId
+  The requestId submitted in the form.
+
+text
+  Transcript. May be empty if the provider returns no speech.
+
+usage.seconds
+  Integer seconds reported by the provider.
+
+creditsCharged
+  Currently always 0.
+
+## 4. Response states
+
+HTTP 200
+  Transcript returned.
+
+HTTP 400 INVALID_REQUEST
+  Multipart parsing failed; missing requestId; invalid UUID; missing file;
+  invalid durationSeconds; language longer than 16 characters; body is not
+  multipart/form-data.
+
+HTTP 401 UNAUTHENTICATED
+  Missing/invalid/unknown/disabled app-client key.
+
+HTTP 403 CAPABILITY_NOT_IN_PLAN
+  The app client has no stt ability grant.
+
+HTTP 422 PAYLOAD_TOO_LARGE
+  Multipart body exceeds 128 MiB.
+
+HTTP 429 RATE_LIMITED
+  Provider rate limit. Includes Retry-After when known.
+
+HTTP 502 UPSTREAM_ERROR
+  Provider failed, returned a non-200 response, returned an invalid body, or
+  transcription failed.
+
+HTTP 503 CAPABILITY_DISABLED
+  Provider/model disabled, credential missing/unreadable, or provider
+  authentication failed. A missing stt route returns 403 CAPABILITY_NOT_IN_PLAN.
+
+HTTP 500 INTERNAL
+  Unexpected gateway error. Report X-Request-Id.
+
+## 5. Error envelope
+
+HTTP 400 example:
+
+{
+  "code": "INVALID_REQUEST",
+  "message": "requestId must be a UUID",
+  "requestId": "71556df2-6ec0-449d-a5d2-72c48f675d90"
+}
+
+Provider response bodies and account identifiers are never returned.
+
+## 6. Limits and behavior
+
+- Max upload: 128 MiB.
+- Max declared duration: 600 seconds.
+- Max language length: 16 characters.
+- The gateway does not store audio.
+- The gateway does not return provider job IDs.
+- If the client disconnects, the provider request is canceled where supported.
+- The response is JSON; do not expect streaming transcript events.
+
+## 7. Client rules
+
+- Send multipart/form-data, not JSON.
+- Use the field name "file" exactly.
+- Include a UUID requestId in the form, not in a JSON body.
+- Keep audio under 10 minutes and 128 MiB.
+- Do not retry 400/401/403/422 without changing the request.
+- For 429, honor Retry-After.
+- For 502/503, use bounded backoff. requestId is not yet an idempotency key,
+  so a retry can transcribe the audio again.
+
+## 8. Example
+
+curl -X POST https://gateway.dream-team.works/v1/stt   -H "X-App-Client-Key: <40 hex>"   -F "requestId=5f2c9d4e-1a2b-4c3d-8e9f-0123456789ab"   -F "durationSeconds=3"   -F "language=en"   -F "file=@hello.mp3;type=audio/mpeg"
+
+Expected:
+- HTTP 200
+- JSON with text and usage.seconds
+- creditsCharged = 0

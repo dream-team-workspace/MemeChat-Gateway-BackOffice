@@ -1,0 +1,226 @@
+# MemeChat Gateway - Errors and HTTP Status
+
+Parent index: llm.txt
+Related: llm/02-request-lifecycle-and-states.txt, llm/10-headers-limits-and-caching.txt
+
+## 1. Error envelope
+
+Every public JSON error uses:
+
+Content-Type: application/json; charset=utf-8
+
+{
+  "code": "INVALID_REQUEST",
+  "message": "human-readable, non-secret message",
+  "requestId": "b310887a-8bdc-457f-8a6d-f18f06b67e46",
+  "details": { "optional": "object" }
+}
+
+Fields:
+
+code
+  Stable machine-readable code. Branch on this, not on message text.
+
+message
+  Human-readable summary. Do not parse or display provider internals.
+
+requestId
+  Gateway request correlation ID. This is the X-Request-Id header value, not
+  necessarily the body requestId.
+
+details
+  Optional object. Known shapes:
+  - CAPABILITY_NOT_IN_PLAN: { capability, clientId }
+  - RATE_LIMITED: { retryAfterSeconds }
+
+No provider response body, credential, prompt, audio, image, or user token is
+included.
+
+## 2. Public error codes currently used
+
+INVALID_REQUEST (400)
+  Malformed JSON, invalid field, invalid UUID, invalid role, invalid voice or
+  format, missing multipart field, unknown quality/input type, invalid vector
+  shape, body has extra JSON after the object, or an unsupported capability
+  string.
+
+UNAUTHENTICATED (401)
+  Missing, malformed, unknown, disabled, or rotated app-client key; or a
+  required Firebase UID header is missing.
+
+CAPABILITY_NOT_IN_PLAN (403)
+  The app-client key is valid, but the requested ability has no enabled route,
+  or the legacy embeddings quality grant is absent.
+
+PAYLOAD_TOO_LARGE (422)
+  Chat text > 16,000 bytes, chat body > 2 MiB, TTS body > 64 KiB or text >
+  5,000 characters, STT upload > 128 MiB, embeddings/vector body > 8 MiB, or
+  an embeddings/vector payload limit is exceeded.
+
+RATE_LIMITED (429)
+  A provider rate limit. The response includes Retry-After when known and
+  details.retryAfterSeconds for TTS, embeddings, and vector paths.
+
+UPSTREAM_ERROR (502)
+  The provider failed, returned a non-200 response, returned an invalid body,
+  or the upstream stream failed before SSE bytes were sent.
+
+CAPABILITY_DISABLED (503)
+  No provider target can serve the ability: provider/model disabled, credential
+  missing/unreadable, provider not configured, or provider authentication
+  failed in a capability path that maps auth errors to unavailable.
+
+SERVICE_UNAVAILABLE (503)
+  The app-client registry itself is unavailable or not configured. This is a
+  gateway outage/configuration state, not a client error.
+
+NOT_READY (503)
+  GET /readyz cannot reach Postgres, or no database is configured.
+
+INTERNAL (500)
+  Unexpected gateway error. The response never contains the raw cause. Report
+  X-Request-Id.
+
+NOT_IMPLEMENTED (501)
+  A reserved endpoint was called. See llm/11-reserved-and-not-implemented.txt.
+
+## 3. Codes reserved for future billing/state paths
+
+These constants exist but are not currently produced by the live public
+capability paths:
+
+- INSUFFICIENT_CREDITS (402)
+- TOKEN_EXPIRED (401)
+- UNKNOWN_CAPABILITY (404)
+- IN_PROGRESS (409)
+- ALREADY_SETTLED (409)
+- PROFILE_NOT_INITIALIZED (409)
+- FAIR_USE_EXCEEDED (429)
+
+Do not implement client behavior that depends on them until the billing and
+account state machine is live. The current gateway reports creditsCharged=0.
+
+## 4. HTTP status summary
+
+200 OK
+  JSON success, SSE stream accepted, audio stream, or health/readiness success.
+
+201 Created
+  Internal admin app-client creation only. Not public.
+
+304 Not Modified
+  GET /v1/capabilities with a matching If-None-Match.
+
+400 Bad Request
+  Invalid request shape/field/limit that is not a payload-size case.
+
+401 Unauthorized
+  Authentication failure.
+
+403 Forbidden
+  The app client is authenticated but not routed to the ability.
+
+404 Not Found
+  Unknown public path, missing admin resource, or missing documentation file.
+  Unknown ServeMux paths may return a plain-text 404 rather than the JSON
+  envelope.
+
+405 Method Not Allowed
+  Wrong HTTP method; Go ServeMux may return a plain-text 405.
+
+409 Conflict
+  Reserved for future idempotency states; not currently public.
+
+422 Unprocessable Entity
+  Payload too large / a well-formed request that exceeds a limit.
+
+429 Too Many Requests
+  Provider rate limit. Check Retry-After.
+
+500 Internal Server Error
+  Unexpected gateway failure.
+
+501 Not Implemented
+  Reserved route.
+
+502 Bad Gateway
+  Provider/upstream failure.
+
+503 Service Unavailable
+  Capability disabled, registry unavailable, or not ready.
+
+## 5. Retry matrix
+
+| Status/code | Retry? | Guidance |
+|---|---|---|
+| 400 INVALID_REQUEST | No | Fix request |
+| 401 UNAUTHENTICATED | No | Fix app-client key/UID |
+| 403 CAPABILITY_NOT_IN_PLAN | No | Operator assigns route |
+| 404 | No | Fix path/resource |
+| 422 PAYLOAD_TOO_LARGE | No | Reduce payload |
+| 429 RATE_LIMITED | Yes | Wait Retry-After, then bounded retry |
+| 500 INTERNAL | Once | Retry once, then report requestId |
+| 502 UPSTREAM_ERROR | Yes | Bounded exponential backoff |
+| 503 CAPABILITY_DISABLED | Conditional | Retry after operator fixes config; transient provider auth may recover |
+| 503 SERVICE_UNAVAILABLE | Yes | Bounded backoff; gateway dependency issue |
+| 503 NOT_READY | Yes | Poll /readyz; do not send traffic |
+| 501 NOT_IMPLEMENTED | No | Feature not available |
+
+Mid-stream SSE error event:
+  Do not automatically replay. The user may have seen partial output. Offer a
+  manual retry if the product allows it.
+
+## 6. Error examples
+
+400:
+
+{
+  "code": "INVALID_REQUEST",
+  "message": "requestId must be a UUID",
+  "requestId": "71556df2-6ec0-449d-a5d2-72c48f675d90"
+}
+
+403:
+
+{
+  "code": "CAPABILITY_NOT_IN_PLAN",
+  "message": "the llm ability is not routed for this app client",
+  "requestId": "b310887a-8bdc-457f-8a6d-f18f06b67e46"
+}
+
+429:
+
+HTTP/1.1 429 Too Many Requests
+Retry-After: 5
+
+{
+  "code": "RATE_LIMITED",
+  "message": "embedding rate limit reached",
+  "requestId": "88c44de9-2192-4194-b98f-e7183d939b93",
+  "details": { "retryAfterSeconds": 5 }
+}
+
+502:
+
+{
+  "code": "UPSTREAM_ERROR",
+  "message": "chat provider request failed",
+  "requestId": "5001a6af-b413-4642-b0a1-431b1cae6b63"
+}
+
+503:
+
+{
+  "code": "CAPABILITY_DISABLED",
+  "message": "chat provider is not available",
+  "requestId": "dc0998b7-6adb-4fa4-b0ac-d6c1726883d0"
+}
+
+## 7. What not to do
+
+- Do not parse provider error text; it is not returned.
+- Do not retry a non-idempotent request automatically after a timeout; the
+  provider may have completed the work.
+- Do not display internal error causes to users.
+- Do not assume every 404 is JSON; unknown routes may be plain text.
+- Do not treat 304 as an error.

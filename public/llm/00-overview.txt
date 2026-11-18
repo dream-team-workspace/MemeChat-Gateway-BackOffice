@@ -1,0 +1,258 @@
+# MemeChat Gateway - Business Process and Overview
+
+Parent index: llm.txt
+Document version: 2026-11-07
+API version: v1
+
+## 1. What the gateway does
+
+The MemeChat Gateway is a server-side broker between MemeChat applications and
+AI providers. An application asks for a capability, not a provider. The gateway
+authenticates the app client, finds the app client's route for that ability,
+resolves the provider endpoint and encrypted credential, validates the request,
+calls the provider, and streams or returns the result.
+
+The application must never receive or choose:
+
+- provider API keys
+- provider base URLs
+- a model that is not on its route
+- another app client's vectors or data
+
+## 2. Actors
+
+- Application: the Android/iOS/web/backend client. It holds one app-client key.
+- App client: the gateway identity for one application installation or service.
+- Operator/backoffice: creates app clients, assigns ability routes, stores
+  encrypted provider credentials, enables/disables providers and models.
+- Gateway: this service. It authenticates, authorizes, validates, routes, and
+  proxies.
+- Provider: OpenCode, ElevenLabs, Salad, Voyage, DeepLake, or another registered
+  service. The app never talks to it directly.
+
+## 3. Mental model: Ability -> Provider -> Model
+
+An ability is the contract the app calls:
+
+- llm
+- tts
+- stt
+- embeddings
+- vector
+
+A provider advertises models. A model belongs to exactly one ability. An app
+client has exactly one enabled route per ability:
+
+  app_client + ability -> one provider_id + one model_id
+
+Current runtime behavior:
+
+- There is no automatic fallback from one provider to another.
+- There is no per-request provider override.
+- A model with the wrong ability is rejected.
+- A disabled provider, disabled model, missing credential, or missing route
+  makes that ability unavailable for that app client.
+
+The app discovers its current route with GET /v1/capabilities.
+
+## 4. Business onboarding flow
+
+### Step 1 - Create the app client
+
+The operator creates an app client. The gateway generates a 40-character
+lowercase hexadecimal app-client key and returns it once. The database stores
+only a digest.
+
+The app stores the key securely. It is a secret. It is not a user token and it
+is not sent in URLs.
+
+### Step 2 - Assign one route per ability
+
+The operator chooses a provider and model for each ability the app may use.
+Example:
+
+  llm        -> opencode / deepseek-v4.1-flash
+  tts        -> elevenlabs / eleven_turbo_v2_5
+  stt        -> salad / transcription-lite
+  embeddings -> voyage / voyage-4-lite
+  vector     -> deeplake / deeplake
+
+An app may use only the abilities it has routes for.
+
+### Step 3 - Configure provider credentials
+
+The operator stores the provider key through the backoffice. The gateway
+encrypts it with AES-256-GCM before writing it to Postgres. The key is never
+returned to the browser, the app, logs, or Redis.
+
+Environment provider keys can bootstrap a provider only when the database has
+no ciphertext for it. Once a database ciphertext exists, it is authoritative.
+
+### Step 4 - App fetches the capability manifest
+
+The app calls GET /v1/capabilities with X-App-Client-Key. The response lists
+only the abilities routed to that app client, plus its provider/model display
+names and pricing metadata.
+
+The app caches the response and uses ETag/304 to refresh. The manifest is a
+server-driven configuration surface; the app should not hardcode models.
+
+### Step 5 - App calls an ability
+
+The app sends the ability-specific request with a client-generated requestId
+(UUID). The gateway:
+
+1. validates the app-client key
+2. loads the app client and routes (L1/L2 cache, then Postgres)
+3. checks that the ability is routed and enabled
+4. validates the request fields and payload limits
+5. resolves the provider/model and decrypts the credential
+6. calls the provider with the request context
+7. streams or returns the result
+8. logs metadata only; message text, audio, images, and provider bodies are not
+   logged or stored
+
+## 5. Current billing and plan state
+
+Credits, plans, and RevenueCat settlement are designed but are not wired into
+the public capability handlers in this deployment.
+
+Consequences for clients:
+
+- creditsCharged is 0 on TTS, STT, embeddings, and vector responses.
+- Chat SSE meta reports reserved=0 and balanceAfterReserve=0.
+- Chat SSE usage reports creditsCharged=0.
+- There is no 402 INSUFFICIENT_CREDITS response from the live capability paths.
+- GET /v1/account is not implemented.
+- Fair-use and plan-entitlement checks are not enforced by the live gateway.
+
+Do not build a production billing flow that assumes charges occur. Use the
+response fields as the live truth. When billing is enabled, this document set
+will be revised with the new states and 402 behavior.
+
+## 6. Current request identity and idempotency state
+
+- X-App-Client-Key identifies the application, not the end user.
+- X-Firebase-Uid is optional metadata. It is not verified as a Firebase ID
+  token and must not be treated as an authorization boundary.
+- requestId is a UUID correlation identifier. It appears in responses, logs,
+  and SSE meta.
+- requestId is not yet a deduplication key for public capabilities. A retry can
+  invoke the provider again and can incur provider cost. Retry only when the
+  error is retryable and the operation is safe for your product.
+
+## 7. Request lifecycle states
+
+At a high level a public request moves through:
+
+  RECEIVED
+    -> AUTHENTICATED
+    -> AUTHORIZED (ability routed and enabled)
+    -> VALIDATED
+    -> ROUTE_RESOLVED (provider/model/credential available)
+    -> PROVIDER_CALLED
+    -> COMPLETED
+       or FAILED_PRE_STREAM
+       or FAILED_MID_STREAM (SSE only)
+       or CLIENT_DISCONNECTED
+
+See llm/02-request-lifecycle-and-states.txt for the full state table and
+failure classification.
+
+## 8. Response families
+
+The gateway returns one of these families:
+
+1. JSON success:
+   application/json; charset=utf-8
+2. JSON error:
+   application/json; charset=utf-8 with { code, message, requestId, details? }
+3. SSE:
+   text/event-stream; event names are fixed
+4. Audio:
+   audio/mpeg or audio/wav, streamed
+5. No content:
+   304 Not Modified for an unchanged capability manifest
+6. Probe:
+   application/json with { "status": "ok" } or { "status": "ready" }
+
+## 9. Public endpoint map
+
+Unauthenticated:
+
+  GET /healthz
+  GET /readyz
+  GET /llm.txt
+  GET /llm/{file}.txt
+
+Authenticated with X-App-Client-Key:
+
+  GET  /v1/capabilities
+  POST /v1/chat/stream
+  POST /v1/tts
+  POST /v1/stt
+  POST /v1/embeddings
+  POST /v1/vectors/upsert
+  POST /v1/vectors/query
+  POST /v1/vectors/delete
+
+Reserved but not implemented:
+
+  GET  /v1/account
+  GET  /v1/requests/{requestId}
+  POST /v1/feedback
+  GET  /v1/consent
+  PUT  /v1/consent
+
+Internal paths under /internal are not part of the public contract and must
+not be exposed to applications.
+
+## 10. Error and retry philosophy
+
+- 4xx means the client must change the request, credentials, or route. Do not
+  blindly retry.
+- 401 means the app-client key is missing, malformed, unknown, or disabled.
+- 403 means the app client has no grant/route for the requested ability.
+- 422 means a body or payload limit was exceeded.
+- 429 means a provider or gateway rate limit; honor Retry-After.
+- 502 means the provider failed or returned an invalid response.
+- 503 means the capability/provider is not available or not configured.
+- 500 means an unexpected gateway error; report the requestId.
+- Mid-stream SSE errors are delivered as an error event with HTTP 200 already
+  sent; the stream may end after the event.
+
+Provider response bodies are never forwarded. Do not attempt to parse them.
+
+## 11. Security boundaries
+
+- App-client keys are secrets. Never embed them in a public web page or a
+  mobile binary that can be inspected. Use a backend-for-frontend if needed.
+- Provider keys exist only server-side.
+- The app client cannot choose another tenant's vectors. The vector table is
+  derived from the authenticated app-client ID.
+- X-Firebase-Uid is untrusted metadata today.
+- The gateway logs metadata (tokens, durations, status) but not prompt text,
+  audio, images, or provider bodies.
+
+## 12. Current limitations to design around
+
+- No public credits or plan enforcement.
+- No public request-status endpoint.
+- No public feedback or consent endpoints.
+- No automatic provider fallback.
+- No public idempotency guarantee for capability calls.
+- No global per-user rate limiter; provider 429s are possible.
+- Kokoro TTS is currently disabled because its configured Salad endpoint was
+  unreachable. ElevenLabs TTS is the active TTS route.
+
+## 13. Glossary
+
+- Ability: coarse capability ID the app calls.
+- Provider: external AI service.
+- Model: provider-specific model ID under one ability.
+- Route: one app client's provider+model selection for one ability.
+- Manifest: GET /v1/capabilities response.
+- ETag: validator for conditional manifest requests.
+- SSE: Server-Sent Events stream used by chat.
+- App client: gateway-issued application identity.
+- Provider credential: encrypted server-side API key.

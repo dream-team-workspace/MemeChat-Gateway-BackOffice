@@ -1,0 +1,100 @@
+# MemeChat Gateway - Health, Readiness, and Documentation Endpoints
+
+Parent index: llm.txt
+
+## 1. Liveness
+
+GET /healthz
+
+Authentication: none.
+
+Response:
+
+HTTP 200
+Content-Type: application/json
+
+{"status":"ok"}
+
+This only proves the process is alive. It does not check Postgres, Redis,
+providers, or credentials. A healthy process can still fail capability calls.
+
+## 2. Readiness
+
+GET /readyz
+
+Authentication: none.
+
+Success:
+
+HTTP 200
+Content-Type: application/json
+
+{"status":"ready"}
+
+Failure:
+
+HTTP 503
+Content-Type: application/json; charset=utf-8
+
+{
+  "code": "NOT_READY",
+  "message": "database is unavailable",
+  "requestId": "<gateway request id>"
+}
+
+Possible messages:
+- "database is not configured"
+- "database is unavailable"
+- "shared cache is unavailable" (only if an extra required pinger is added)
+
+Current readiness checks:
+
+- Postgres: required. A failed ping returns 503.
+- Redis: optional L2 cache. The live gateway does not include Redis in /readyz.
+  A Redis outage should degrade cache performance, not fail readiness.
+- Provider credentials/models are not checked by /readyz.
+
+Use /readyz for load-balancer/orchestrator decisions. Do not use /healthz for
+traffic admission.
+
+## 3. Public documentation files
+
+GET /llm.txt
+
+HTTP 200
+Content-Type: text/plain; charset=utf-8
+Cache-Control: public, max-age=300
+X-Content-Type-Options: nosniff
+
+The body is the documentation index.
+
+GET /llm/{file}.txt
+
+Examples:
+- /llm/00-overview.txt
+- /llm/04-chat-stream.txt
+- /llm/08-vectors.txt
+
+Only .txt files in the documentation directory are served. Directory listing
+and path traversal are rejected.
+
+Missing file:
+
+HTTP 404
+(plain text, not the JSON error envelope)
+
+## 4. Operational notes
+
+- /healthz and /readyz are intentionally unauthenticated.
+- /llm.txt and /llm/*.txt are public.
+- Do not expose /internal/* publicly.
+- The docs are static text; editing a file on the server does not require a
+  gateway restart because the handler reads the filesystem per request.
+- If PUBLIC_DOCS_DIR is not configured or the directory is missing, /llm.txt and
+  /llm/* return 404. This does not affect capability traffic.
+
+## 5. Probe examples
+
+curl -i https://gateway.dream-team.works/healthz
+curl -i https://gateway.dream-team.works/readyz
+curl -i https://gateway.dream-team.works/llm.txt

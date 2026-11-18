@@ -26,7 +26,7 @@ an empty route set and must not imply abilities that are disabled or unrouted.
 In scope:
 
 - Client identity card with the persisted SHA-1 digest and a copy action.
-- Access tab: one provider and model per ability, five fixed rows, route-only save.
+- Access tab: one provider and model per ability, fixed row order, route-only save.
 - Provider key/health warning; link to the provider detail.
 - “Admin audit” tab: immutable operator actions for this client.
 - “User activity” tab: metadata-only requests authenticated by this client key.
@@ -45,8 +45,8 @@ Out of scope:
 ## Behavior
 
 1. The detail page has Access, Admin audit, and User activity tabs.
-2. Access shows all five abilities in fixed order (`llm`, `tts`, `stt`, `embeddings`,
-   `vector`), including unrouted rows. Provider choices are filtered by kind; model choices
+2. Access shows the supported abilities in fixed order (`llm`, `tts`, `stt`, `embeddings`,
+   `vector`, `search`), including unrouted rows. Web search depends on gateway support. Provider choices are filtered by kind; model choices
    by provider + ability + enabled.
 3. Changing provider resets the model to the first enabled model. Remove clears a row.
    Save sends only complete routes. An incomplete row blocks Save with a row error.
@@ -68,7 +68,7 @@ Out of scope:
 
 ## Acceptance criteria
 
-- [x] Access lists all five abilities, including unrouted rows.
+- [x] Access lists the supported abilities, including unrouted rows.
 - [x] Provider/model options are filtered; changing provider resets the model.
 - [x] Save sends only complete enabled routes; removed abilities are omitted.
 - [x] Missing provider key warns without blocking Save.
@@ -91,7 +91,7 @@ Out of scope:
 | Method | Path | Notes |
 |---|---|---|
 | GET/POST/PUT/DELETE | `/api/admin/app-clients...` | Identity; create/update accepts `routes` |
-| PUT | `/api/admin/app-clients/{id}/routes` | Replace the five-ability route set |
+| PUT | `/api/admin/app-clients/{id}/routes` | Replace the complete ability route set |
 | GET | `/api/admin/app-clients/{id}/audit?limit=&cursor=` | Live |
 | GET | `/api/admin/app-clients/{id}/activity?limit=&cursor=&date=dd_mm_yyyy` | File-backed; date defaults to today |
 | GET | `/api/admin/users/{uid}/activity?limit=&cursor=&date=dd_mm_yyyy` | File-backed; user tab |

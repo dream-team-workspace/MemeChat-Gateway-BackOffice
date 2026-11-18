@@ -104,6 +104,9 @@ export function AbilityDetailPage() {
     grouped.set(model.providerId, list);
   }
   const providerIds = Array.from(grouped.keys());
+  const searchLimits = ability.id === "search"
+    ? profiles.find((profile) => profile.id === "search")?.limits
+    : undefined;
 
   return (
     <div className="animate-in">
@@ -146,6 +149,34 @@ export function AbilityDetailPage() {
           Refresh
         </Button>
       </div>
+
+      {ability.id === "search" ? (
+        <Card className="mt-5">
+          <CardHeader>
+            <CardTitle>Web search requests</CardTitle>
+            <CardDescription>
+              Apps call <code>POST /v1/search</code> with an enabled Web search route. The gateway currently charges 0 credits per request. Limits below come from the capability profile.
+            </CardDescription>
+          </CardHeader>
+          {searchLimits ? (
+            <CardContent>
+              <dl className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+                {[
+                  { label: "Query characters", value: searchLimits.maxQueryChars },
+                  { label: "Results", value: searchLimits.maxResults },
+                  { label: "Domains per filter", value: searchLimits.maxDomains },
+                  { label: "Timeout in seconds", value: searchLimits.requestTimeoutSeconds },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="mt-1 font-medium tabular-nums">{typeof value === "number" ? value : "Unspecified"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          ) : null}
+        </Card>
+      ) : null}
 
       <Card className="mt-5 overflow-hidden">
         <CardHeader className="flex-row items-start justify-between gap-3">
@@ -221,7 +252,9 @@ export function AbilityDetailPage() {
         <CardHeader>
           <CardTitle>Cost and limits profiles</CardTitle>
           <CardDescription>
-            Billing stays on the legacy capability profile. The selected route model does not change the profile cost unit.
+            {ability.id === "search"
+              ? "The legacy profile stores the advertised limits and a required positive placeholder cost."
+              : "Billing stays on the legacy capability profile. The selected route model does not change the profile cost unit."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">

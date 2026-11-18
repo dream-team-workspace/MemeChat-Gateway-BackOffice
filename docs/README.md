@@ -2,7 +2,7 @@
 
 This repository is documentation-first. The planning corpus is complete; the Phase 1
 operator console, BFF, and live gateway admin integration are implemented on
-`feature/implementation`. Playwright/E2E coverage and production deployment are still pending.
+`development` and deployed from `master`. Playwright/E2E coverage is still pending.
 
 ## Start here
 
@@ -12,6 +12,8 @@ operator console, BFF, and live gateway admin integration are implemented on
 3. [Architecture](03-architecture.md) — runtime topology and the feature-based frontend.
 4. [DESIGN.md](../DESIGN.md) — the visual system and shadcn principles.
 5. [Requirements](requirements/README.md) — one file per requirement, with acceptance criteria.
+6. [Plans and agent workflow](plans/README.md) — prompt → plan contract and repo-local agent
+   skills under [`.agents/`](../.agents/README.md).
 
 ## By audience
 
@@ -31,6 +33,8 @@ operator console, BFF, and live gateway admin integration are implemented on
 - [Engineering standards](08-engineering-standards.md)
 - [Testing strategy](09-testing-strategy.md)
 - [Architecture decision records](adr/)
+- [Plans and agent workflow](plans/README.md) — `*.prompt.txt` → `*.plan.md`; skills in
+  [`.agents/skills/`](../.agents/skills/)
 
 **Security / deployment**
 
@@ -42,6 +46,7 @@ operator console, BFF, and live gateway admin integration are implemented on
 
 - [Glossary](13-glossary.md)
 - [AGENTS.md](../AGENTS.md)
+- [Agent skills](../.agents/README.md) — repo-local playbooks for agents and reviewers
 
 ## Status legend
 
@@ -62,5 +67,8 @@ Every requirement file carries its own status and priority.
 - A visual change updates [DESIGN.md](../DESIGN.md) with a screenshot and a contrast check.
 - A new endpoint or field must be traceable to the gateway contract or explicitly marked
   **assumed** in [02-backend-contract-analysis.md](02-backend-contract-analysis.md).
+- Prompt-driven work starts from `docs/plans/<slug>.prompt.txt`; read it verbatim and write the
+  matching `*.plan.md` before changing code. Update `.agents/skills/` when a documented
+  convention changes.
 - Do not delete a requirement to make a milestone look complete. Change its status and
   record why.

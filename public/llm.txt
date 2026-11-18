@@ -1,0 +1,165 @@
+# MemeChat Gateway Public Documentation
+
+Document ID: memechat-gateway-public
+Document version: 2026-11-07
+API version: v1
+Base URL: https://gateway.dream-team.works
+Content type: text/plain; charset=utf-8
+Audience: application developers, SDK authors, LLM agents
+
+This file is the index. Read it first, then open the file for the capability
+you need. All files are plain text and are safe for a public documentation
+site.
+
+## How to read this documentation
+
+- The live API base URL is https://gateway.dream-team.works
+- Every app API path starts with /v1.
+- JSON examples are illustrative. Field names are exact.
+- "Current" means the live gateway as of 2026-11-07.
+- "Future" means designed but not implemented in this deployment.
+- No provider key, app-client key, or user token appears in this documentation.
+
+## Documentation files
+
+### Business and lifecycle
+
+- llm/00-overview.txt
+  Business process, actors, ability routing, request lifecycle, current
+  limitations, and glossary.
+
+- llm/01-authentication.txt
+  App-client key, optional Firebase UID, authentication errors, key rotation,
+  and what is not an authorization boundary.
+
+- llm/02-request-lifecycle-and-states.txt
+  End-to-end states, routing resolution, provider states, retry semantics,
+  idempotency status, and failure classification.
+
+### API contract by capability
+
+- llm/03-capabilities.txt
+  GET /v1/capabilities: manifest shape, ETag/304 behavior, caching, and every
+  response state.
+
+- llm/04-chat-stream.txt
+  POST /v1/chat/stream: request, validation, SSE event contract, every stream
+  state, termination, and error behavior.
+
+- llm/05-tts.txt
+  POST /v1/tts: request, voice/format rules, streamed audio response, headers,
+  and errors.
+
+- llm/06-stt.txt
+  POST /v1/stt: multipart request, limits, transcript response, and errors.
+
+- llm/07-embeddings.txt
+  POST /v1/embeddings: profiles, input types, dimensions, dtypes, encodings,
+  response shape, and errors.
+
+- llm/08-vectors.txt
+  POST /v1/vectors/upsert, query, delete: tenant isolation, limits, metadata,
+  scores, and errors.
+
+### Cross-cutting contract
+
+- llm/09-errors-and-http-status.txt
+  Error envelope, every public error code, HTTP status mapping, and whether a
+  request is retryable.
+
+- llm/10-headers-limits-and-caching.txt
+  Headers, request IDs, payload limits, timeouts, ETag caching, and rate-limit
+  behavior.
+
+- llm/11-reserved-and-not-implemented.txt
+  Routes that exist but are not implemented, and what a client should do.
+
+- llm/12-examples.txt
+  Copy-ready request examples and expected shape summaries.
+
+### Probes and docs
+
+- llm/13-health-and-readiness.txt
+  GET /healthz and GET /readyz.
+
+## API surface at a glance
+
+Public, unauthenticated:
+
+- GET /healthz
+- GET /readyz
+- GET /llm.txt
+- GET /llm/{file}.txt
+
+Public, app-client authenticated:
+
+- GET  /v1/capabilities
+- POST /v1/chat/stream
+- POST /v1/tts
+- POST /v1/stt
+- POST /v1/embeddings
+- POST /v1/vectors/upsert
+- POST /v1/vectors/query
+- POST /v1/vectors/delete
+
+Reserved but currently not implemented:
+
+- GET  /v1/account
+- GET  /v1/requests/{requestId}
+- POST /v1/feedback
+- GET  /v1/consent
+- PUT  /v1/consent
+
+Internal endpoints under /internal are not part of this public contract.
+
+## Most important current facts
+
+1. The app authenticates with X-App-Client-Key. The gateway, not the app,
+   chooses the provider and model for each ability.
+2. One app client has exactly one enabled route per ability. There is no
+   automatic provider fallback chain in the current runtime.
+3. Credits are not enforced yet. Public responses report zero charged credits.
+   GET /v1/account is not implemented.
+4. requestId is a correlation identifier. It is not yet a public idempotency
+   key for chat, TTS, STT, embeddings, or vectors. Retrying a request can call
+   the provider again.
+5. /v1/capabilities is cached per app client and supports ETag/304. Send the
+   app-client key and, when possible, If-None-Match.
+6. Provider errors are returned as 502 UPSTREAM_ERROR or 503
+   CAPABILITY_DISABLED. Provider response bodies are never returned.
+7. /readyz checks Postgres only. Redis is an optional L2 cache and is not a
+   readiness dependency.
+8. The documentation files are served from the gateway at /llm.txt and
+   /llm/*.txt with Content-Type text/plain.
+
+## Machine-readable reading order
+
+For a complete client implementation, read in this order:
+
+1. llm/00-overview.txt
+2. llm/01-authentication.txt
+3. llm/02-request-lifecycle-and-states.txt
+4. llm/09-errors-and-http-status.txt
+5. llm/03-capabilities.txt
+6. The capability file(s) you implement
+7. llm/10-headers-limits-and-caching.txt
+8. llm/11-reserved-and-not-implemented.txt
+9. llm/12-examples.txt
+
+## Canonical field naming
+
+- JSON field names are camelCase: requestId, maxOutputTokens, inputType.
+- Header names are case-insensitive; examples use canonical case.
+- Ability IDs are lowercase: llm, tts, stt, embeddings, vector.
+- Legacy capability IDs are accepted in chat and embeddings compatibility paths:
+  chat.standard, chat.premium, embeddings.fast, embeddings.balanced,
+  embeddings.quality, embeddings.code.
+- Times are RFC 3339 UTC strings when present.
+- IDs are opaque strings unless a field says UUID.
+
+## Contact and source of truth
+
+The public contract is this documentation set. Internal implementation notes and
+operator-only endpoints are not public. If code and documentation disagree,
+treat the live response and this document's error/response sections as the
+client contract, and report the mismatch to the gateway owner.

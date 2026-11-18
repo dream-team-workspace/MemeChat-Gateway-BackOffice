@@ -104,6 +104,9 @@ export function ProviderDetailPage() {
   }
 
   const provider = detail.data;
+  const searchTransport = provider.kind === "search" && provider.id === "tavily"
+    ? (typeof provider.config.transport === "string" ? provider.config.transport.trim() : "") || "mcp"
+    : null;
   const status = list.data?.items.find((item) => item.id === provider.id);
   const display = status
     ? providerDisplayState(status)
@@ -252,6 +255,12 @@ export function ProviderDetailPage() {
                 <p className="text-muted-foreground">Base URL</p>
                 <p className="mt-1 break-all font-mono text-[11px]">{provider.baseUrl || "Not set"}</p>
               </div>
+              {searchTransport ? (
+                <div>
+                  <p className="text-muted-foreground">Search transport</p>
+                  <p className="mt-1 font-medium">{searchTransport.toUpperCase()}</p>
+                </div>
+              ) : null}
               <div>
                 <p className="text-muted-foreground">Provider config</p>
                 <pre className="mt-1 max-h-40 overflow-auto rounded-md border border-border bg-muted/40 p-2 font-mono text-[11px]">
