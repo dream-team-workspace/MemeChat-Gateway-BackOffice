@@ -1,15 +1,20 @@
 import { Hono } from "hono";
 
 import {
+  activatedAppClientKeySchema,
   appClientActivityEntrySchema,
   appClientActivityListSchema,
   appClientAuditEntrySchema,
   appClientAuditListSchema,
   appClientDeleteSchema,
   appClientInputSchema,
+  appClientKeyActivationInputSchema,
+  appClientKeyRotationInputSchema,
   appClientListSchema,
   appClientRoutesInputSchema,
   appClientSchema,
+  cancelledAppClientKeySchema,
+  preparedAppClientKeySchema,
 } from "../../../shared/admin-api/index.js";
 import { adminFetch } from "../gateway/live.js";
 import { camelize, listItems, toApiBody } from "../gateway/mappers.js";
@@ -112,7 +117,45 @@ appClients.get("/:id/activity", async (c) => {
   );
 });
 
+function keyRotationPath(id: string, action: "prepare" | "activate" | "cancel") {
+  return "/internal/admin/app-clients/" + encodeURIComponent(id) + "/key/" + action;
+}
+
+appClients.post("/:id/key/prepare", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const input = await jsonBody(c, appClientKeyRotationInputSchema);
+  const raw = await adminFetch(keyRotationPath(c.req.param("id"), "prepare"), c.get("actor"), {
+    method: "POST",
+    body: input,
+    requestId: c.get("requestId"),
+  });
+  return c.json(preparedAppClientKeySchema.parse(raw), 201);
+});
+
+appClients.post("/:id/key/activate", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const input = await jsonBody(c, appClientKeyActivationInputSchema);
+  const raw = await adminFetch(keyRotationPath(c.req.param("id"), "activate"), c.get("actor"), {
+    method: "POST",
+    body: input,
+    requestId: c.get("requestId"),
+  });
+  return c.json(activatedAppClientKeySchema.parse(raw));
+});
+
+appClients.post("/:id/key/cancel", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const input = await jsonBody(c, appClientKeyRotationInputSchema);
+  const raw = await adminFetch(keyRotationPath(c.req.param("id"), "cancel"), c.get("actor"), {
+    method: "POST",
+    body: input,
+    requestId: c.get("requestId"),
+  });
+  return c.json(cancelledAppClientKeySchema.parse(raw));
+});
+
 appClients.post("/:id/key/rotate", async (c) => {
+  c.header("Cache-Control", "no-store");
   const raw = await adminFetch(
     "/internal/admin/app-clients/" + encodeURIComponent(c.req.param("id")) + "/key/rotate",
     c.get("actor"),

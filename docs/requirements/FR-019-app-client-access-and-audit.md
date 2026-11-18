@@ -32,7 +32,7 @@ In scope:
 - “User activity” tab: metadata-only requests authenticated by this client key.
 - Date filter (`dd_mm_yyyy`) and cursor pagination with explicit empty/pending/error states.
 - A matching Activity tab on the user detail page, scoped to that UID.
-- Edit details, rotate key, delete unchanged.
+- Edit details, prepare and activate a new key, cancel a pending rotation, and delete clients.
 - Read-only legacy capability matrix when the gateway has no `routes` or the rollout flag is off.
 
 Out of scope:
@@ -58,9 +58,12 @@ Out of scope:
    `Reload client`; reloading replaces the draft with the gateway response.
 7. External route changes are detected by comparing route tuples, not `updatedAt`. Metadata
    edits preserve routes by sending the current set.
-8. The identity card shows `clientKeySha1` when the gateway returns it; otherwise the copy
-   control is disabled with a short explanation. The plaintext key is only shown in the
-   create/rotate dialog.
+8. The identity card shows `clientKeySha1` as the SHA-1 fingerprint. The copy control is
+   disabled when the fingerprint is absent. Manage app-client key opens the preparation dialog.
+   Preparation reveals a copyable key while the previous one remains active. Activation
+   refreshes the fingerprint while keeping the issued key available to publish in
+   `online_gateway_api_key`. A lost preparation response can be recovered by discarding the
+   pending operation and preparing a fresh key.
 9. Admin audit and user activity load lazily when their tab is selected. Activity defaults to
    today and reloads when the selected date changes.
 10. If a gateway response has no `routes`, Access shows a read-only legacy capability matrix
@@ -72,7 +75,9 @@ Out of scope:
 - [x] Provider/model options are filtered; changing provider resets the model.
 - [x] Save sends only complete enabled routes; removed abilities are omitted.
 - [x] Missing provider key warns without blocking Save.
-- [x] SHA-1 value renders and is copyable when present; the control is disabled otherwise.
+- [x] SHA-1 fingerprint renders and is copyable when present.
+- [x] Prepare displays the issued key and permits explicit activation or discard.
+- [x] Activation refreshes the fingerprint and retains the exact issued key until the dialog closes.
 - [x] Admin audit and user activity tables render fixture data and paginate.
 - [x] Missing endpoints show a neutral pending state, and the rest of the page works.
 - [x] Gateway returns `clientKeySha1` on list/get (verified live).
@@ -102,7 +107,7 @@ Types: `AppClientRoute`, `AppClientRouteInput`, `AppClientAuditEntry`,
 ## Security and audit
 
 - SHA-1 is a fingerprint, not an authorization proof.
-- Never return or log the plaintext client key after create/rotate.
+- Reveal plaintext on create or prepare. Keep the prepared key in transient dialog state and exclude it from caches and logs.
 - Admin audit is append-only; store safe before/after snapshots without key material.
 - Activity is metadata only: UID, app-client id, capability, HTTP status, latency, request id, time.
   Model and credit cost are not captured in the file-backed version, so the console does not show

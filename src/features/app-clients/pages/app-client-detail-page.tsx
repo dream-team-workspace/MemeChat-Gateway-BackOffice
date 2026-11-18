@@ -24,18 +24,14 @@ import {
   AppClientUserActivity,
 } from "@/features/app-clients/components/app-client-audit-panel";
 import { AppClientFormDialog } from "@/features/app-clients/components/app-client-form-dialog";
-import { ClientKeyDialog } from "@/features/app-clients/components/client-key-dialog";
+import { AppClientKeyRotationDialog } from "@/features/app-clients/components/app-client-key-rotation-dialog";
 import { RouteEditor } from "@/features/app-clients/components/route-editor";
 import { RouteSummary } from "@/features/app-clients/components/route-summary";
 import { routedAbilityCount } from "@/features/app-clients/lib/app-client-routes";
-import {
-  useDeleteAppClient,
-  useRotateAppClientKey,
-} from "@/features/app-clients/mutations/app-clients.mutations";
+import { useDeleteAppClient } from "@/features/app-clients/mutations/app-clients.mutations";
 import { appClientQueryOptions } from "@/features/app-clients/queries/app-clients.queries";
 import { getErrorMessage } from "@/platform/api";
 import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 type Tab = "access" | "audit" | "activity";
 
@@ -60,7 +56,7 @@ export function AppClientDetailPage() {
       </Card>
     );
   }
-  if (client.isError || !client.data) {
+  if (!client.data) {
     return (
       <Card>
         <CardContent className="p-0">
@@ -69,42 +65,33 @@ export function AppClientDetailPage() {
       </Card>
     );
   }
-  return <AppClientEditor key={client.data.id} client={client.data} />;
+  return (
+    <>
+      {client.isError ? (
+        <p role="alert" className="mb-4 text-xs text-destructive">
+          The app-client details could not be refreshed. Showing the last loaded values.
+        </p>
+      ) : null}
+      <AppClientEditor key={client.data.id} client={client.data} />
+    </>
+  );
 }
 
 function AppClientEditor({ client }: { client: AppClient }) {
   const navigate = useNavigate();
   const remove = useDeleteAppClient();
-  const rotate = useRotateAppClientKey(client.id);
   const [tab, setTab] = useState<Tab>("access");
   const [editOpen, setEditOpen] = useState(false);
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [rotateOpen, setRotateOpen] = useState(false);
-  const [rotateError, setRotateError] = useState<string | null>(null);
   const [copiedSha, setCopiedSha] = useState(false);
 
   function deleteClient() {
     remove.mutate(client.id, {
       onSuccess: () => void navigate({ to: "/app-clients" }),
       onError: (mutationError) => setDeleteError(getErrorMessage(mutationError)),
-    });
-  }
-
-  function rotateKey() {
-    rotate.mutate(undefined, {
-      onSuccess: (updated) => {
-        if (!updated.clientKey) {
-          setRotateError("The gateway did not return a new client key.");
-          return;
-        }
-        setRotateOpen(false);
-        setRevealedKey(updated.clientKey);
-        setError(null);
-      },
-      onError: (mutationError) => setRotateError(getErrorMessage(mutationError)),
     });
   }
 
@@ -213,12 +200,12 @@ function AppClientEditor({ client }: { client: AppClient }) {
                   <p className="text-sm font-semibold">Client identity</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     {client.keyRotatedAt
-                      ? "Key rotated " + formatDateTime(client.keyRotatedAt) + ". The plaintext key is never shown again."
+                      ? "Key rotated " + formatDateTime(client.keyRotatedAt) + "."
                       : "No identity key has been issued yet."}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      SHA-1 identity
+                      SHA-1 fingerprint
                     </span>
                     <code className="break-all rounded bg-muted px-2 py-0.5 font-mono text-[11px] text-foreground">
                       {sha1 ?? "—"}
@@ -229,10 +216,10 @@ function AppClientEditor({ client }: { client: AppClient }) {
                       size="sm"
                       onClick={() => void copySha1()}
                       disabled={!sha1}
-                      title={sha1 ? "Copy the SHA-1 identity digest" : "No digest available"}
+                      title={sha1 ? "Copy the SHA-1 fingerprint digest" : "No digest available"}
                     >
                       {copiedSha ? <Check /> : <Copy />}
-                      {copiedSha ? "Copied" : "Copy SHA-1"}
+                      {copiedSha ? "Copied" : "Copy fingerprint"}
                     </Button>
                   </div>
                   {client.clientKeySha1 === undefined ? (
@@ -246,15 +233,10 @@ function AppClientEditor({ client }: { client: AppClient }) {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => { setRotateError(null); setRotateOpen(true); }}
-                disabled={rotate.isPending}
+                onClick={() => setRotateOpen(true)}
               >
-                <RefreshCw className={cn(rotate.isPending && "animate-spin")} />
-                {rotate.isPending
-                  ? "Rotating…"
-                  : client.keyRotatedAt
-                    ? "Rotate key"
-                    : "Issue key"}
+                <RefreshCw />
+                Manage app-client key
               </Button>
             </CardContent>
           </Card>
@@ -286,31 +268,11 @@ function AppClientEditor({ client }: { client: AppClient }) {
         <p>Delete <span className="font-medium">{client.name}</span>?</p>
       </ConfirmDialog>
 
-      <ConfirmDialog
+      <AppClientKeyRotationDialog
+        clientId={client.id}
         open={rotateOpen}
-        onOpenChange={setRotateOpen}
-        title={client.keyRotatedAt ? "Rotate client key" : "Issue client key"}
-        description="The current key stops working immediately. The new key is shown once and cannot be retrieved later."
-        confirmLabel={client.keyRotatedAt ? "Rotate key" : "Issue key"}
-        pendingLabel="Rotating…"
-        pending={rotate.isPending}
-        variant="default"
-        error={rotateError}
-        onConfirm={rotateKey}
-      >
-        <p>
-          The app must be updated with the new <span className="font-mono">X-App-Client-Key</span> value.
-        </p>
-      </ConfirmDialog>
-
-      {revealedKey ? (
-        <ClientKeyDialog
-          open
-          client={client}
-          clientKey={revealedKey}
-          onClose={() => setRevealedKey(null)}
-        />
-      ) : null}
+        onClose={() => setRotateOpen(false)}
+      />
     </div>
   );
 }

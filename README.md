@@ -37,9 +37,10 @@ switches, user ledger/usage, credit grants, and system operations.
 - **App clients** — create Android/iOS/web/backend clients and choose one provider and model
   per ability in the Access tab. The editor filters providers by ability and models by
   provider + ability, warns (without blocking) when the provider key is missing, and saves the
-  complete route set atomically. Each client gets a one-time 40-character identity key (store
-  only its SHA-1 digest); the app sends it as `X-App-Client-Key`, and rotation immediately
-  invalidates the old key. Clients can require the app-asserted `X-Firebase-Uid` header;
+  complete route set atomically. Manage app-client key prepares a one-time 40-character key
+  for copying. Activation replaces the current key and refreshes its fingerprint. Publish the
+  issued key as `online_gateway_api_key` for Android clients that use Firebase Remote Config.
+  The app sends it as `X-App-Client-Key`. Clients can require the app-asserted `X-Firebase-Uid` header;
   optional clients may omit it.
 - **BFF** — Hono on Node, Cloudflare Access JWT validation in production, live gateway proxy
   with admin-secret injection and canonical mapping, request IDs, error envelope, origin
