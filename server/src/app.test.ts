@@ -135,6 +135,39 @@ const appClientRoute = {
   enabled: true,
 };
 
+const searchModel = {
+  ...providerCatalogModel,
+  providerId: "tavily",
+  modelId: "tavily-search",
+  displayName: "Tavily Search",
+  ability: "search",
+  costUnit: "request",
+  costCredits: 0,
+};
+
+const searchRoute = {
+  ability: "search",
+  abilityName: "Web search",
+  providerId: "tavily",
+  providerName: "Tavily",
+  modelId: "tavily-search",
+  modelName: "Tavily Search",
+  enabled: true,
+};
+
+const searchProvider = {
+  ...providerDetail,
+  id: "tavily",
+  displayName: "Tavily",
+  kind: "search",
+  baseUrl: "https://api.tavily.test",
+  hasApiKey: false,
+  apiKeyHint: null,
+  apiKeyUpdatedAt: null,
+  config: { credential: "optional", transport: "mcp", accessMode: "keyless" },
+  models: [searchModel],
+};
+
 const auditEntry = {
   id: 1,
   capabilityId: "chat.standard",
@@ -294,7 +327,28 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return json({ configured: true, projectId: "proj_test", baseUrl: "http://rc.test" });
   }
   if (url.pathname === "/internal/admin/providers") {
-    return method === "POST" ? json(providerDetail, 201) : json({ items: [provider] });
+    return method === "POST" ? json(providerDetail, 201) : json({
+      items: [
+        provider,
+        {
+          ...provider,
+          id: "tavily",
+          displayName: "Tavily",
+          kind: "search",
+          role: "Web search",
+          capabilities: ["search"],
+          models: [{ id: searchModel.modelId, capability: "search", displayName: searchModel.displayName }],
+          model: searchModel.modelId,
+          hasApiKey: false,
+          apiKeyHint: null,
+          apiKeyUpdatedAt: null,
+          lastCheck: null,
+        },
+      ],
+    });
+  }
+  if (url.pathname === "/internal/admin/providers/tavily") {
+    return json(searchProvider);
   }
   if (url.pathname === "/internal/admin/providers/opencode") {
     if (method === "DELETE") return json({ deleted: true });
@@ -345,7 +399,12 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     );
   }
   if (url.pathname === "/internal/admin/abilities") {
-    return json({ items: [ability] });
+    return json({
+      items: [
+        ability,
+        { id: "search", kind: "search", displayName: "Web search", sortOrder: 60, enabled: true, models: [searchModel] },
+      ],
+    });
   }
   if (url.pathname === "/internal/admin/capabilities") {
     return json({ items: [capability] });
@@ -375,7 +434,9 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return json(appClient);
   }
   if (url.pathname === "/internal/admin/app-clients/" + appClient.id + "/routes") {
-    return json({ ...appClient, routes: [appClientRoute] });
+    const routes = body ? JSON.parse(body).routes : [];
+    const selectedSearch = routes.some((route: { ability: string }) => route.ability === "search");
+    return json({ ...appClient, routes: selectedSearch ? [appClientRoute, searchRoute] : [appClientRoute] });
   }
   if (url.pathname === "/internal/admin/app-clients/" + appClient.id + "/audit") {
     return json({ items: [appClientAuditEntry], nextCursor: "older" });
@@ -545,7 +606,7 @@ describe("live-only BFF admin API", () => {
         lastCheck: { status: string; checkedBy: string | null } | null;
       }>;
     }>(await app.request("/api/admin/providers"));
-    expect(list.items).toHaveLength(1);
+    expect(list.items).toHaveLength(2);
     expect(list.items[0]?.id).toBe("opencode");
     expect(list.items[0]?.status).toBe("healthy");
     expect(list.items[0]?.lastCheck?.status).toBe("healthy");
@@ -757,6 +818,53 @@ describe("live-only BFF admin API", () => {
     expect(calls.at(-1)?.body).toContain('"model_id":"deepseek-v4.1-flash"');
     const body = await jsonBody<{ routes: Array<{ ability: string }> }>(saved);
     expect(body.routes[0]?.ability).toBe("llm");
+  });
+
+  it("reads Web search and forwards all six enabled client routes", async () => {
+    const abilities = await app.request("/api/admin/abilities");
+    expect(abilities.status).toBe(200);
+    expect(await abilities.json()).toMatchObject({
+      items: [ability, { id: "search", models: [searchModel] }],
+    });
+
+    const providers = await app.request("/api/admin/providers");
+    expect(providers.status).toBe(200);
+    const providerList = await jsonBody<{ items: Array<{ id: string }> }>(providers);
+    expect(providerList.items.find((item) => item.id === "tavily")).toMatchObject({
+      kind: "search", configured: true, hasApiKey: false, credentialState: "ready",
+    });
+
+    const tavily = await app.request("/api/admin/providers/tavily");
+    expect(tavily.status).toBe(200);
+    expect(await tavily.json()).toMatchObject({ ...searchProvider, credentialState: "ready" });
+
+    const routes = ["llm", "tts", "stt", "embeddings", "vector"].map((ability) => ({
+      ability,
+      providerId: "fixture-provider",
+      modelId: "fixture-" + ability,
+      enabled: true,
+    }));
+    routes.push({ ability: searchRoute.ability, providerId: searchRoute.providerId, modelId: searchRoute.modelId, enabled: true });
+    const saved = await app.request("/api/admin/app-clients/" + appClient.id + "/routes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ routes }),
+    });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ routes: [appClientRoute, searchRoute] });
+    expect(JSON.parse(calls.at(-1)?.body ?? "{}").routes).toHaveLength(6);
+    expect(JSON.parse(calls.at(-1)?.body ?? "{}").routes[5]).toEqual({
+      ability: "search", provider_id: "tavily", model_id: "tavily-search", enabled: true,
+    });
+
+    calls.length = 0;
+    const invalid = await app.request("/api/admin/app-clients/" + appClient.id + "/routes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ routes: [ ...routes.slice(0, 5), { ...routes[5], ability: "unknown" } ] }),
+    });
+    expect(invalid.status).toBe(422);
+    expect(calls).toHaveLength(0);
   });
 
   it("parses both Firebase UID policy values", () => {

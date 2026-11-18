@@ -32,6 +32,15 @@ be resolved. The BFF derives `credentialState` and distinguishes `missing` from
 `unreadable`, and enriches `409 PROVIDER_IN_USE` with referencing app clients. See
 [06-api-integration.md](06-api-integration.md) and [15-gateway-requests.md](15-gateway-requests.md).
 
+**2026-11-18 Web search update:** Gateway branch `feat/web-search-mcp` adds migration 0011 and
+`POST /v1/search`. Migration 0011 seeds the `search` ability and the `tavily/tavily-search`
+provider model, and backfills missing search routes for existing app clients. The Tavily
+provider defaults to keyless MCP using `tavily_search`. Operators can set
+`config.transport` to `rest` in Providers. A configured gateway key takes precedence
+over keyless access. The seeded provider model and search handler use 0 credits per request.
+The legacy search profile has a required positive placeholder cost. Its limits advertise
+400 query characters, 10 results, 20 domains per filter list, and a 20-second timeout.
+
 ## 2. What exists today (verified)
 
 From `cmd/gateway/routes.go`:
@@ -40,12 +49,13 @@ From `cmd/gateway/routes.go`:
 |---|---|
 | `GET /healthz` | Live |
 | `GET /v1/account` | Mounted, `501 NOT_IMPLEMENTED` |
-| `GET /v1/capabilities` | Mounted, `501` |
+| `GET /v1/capabilities` | Implemented; lists Web search for clients with a catalogued search route |
 | `POST /v1/chat/stream` | Mounted, `501` |
 | `GET /v1/requests/{requestId}` | Mounted, `501` |
 | `POST /v1/tts` | Implemented (Kokoro streaming) |
 | `POST /v1/stt` | Implemented (Salad) |
 | `POST /v1/embeddings` | Implemented (Voyage) |
+| `POST /v1/search` | Implemented (Tavily MCP or REST) on `feat/web-search-mcp` |
 | `POST /v1/feedback` | Mounted, `501` |
 | `GET/PUT /v1/consent` | Mounted, `501` |
 | `POST /internal/rc/webhook` | Mounted, `501` |
@@ -82,7 +92,7 @@ same rows; the console reads them from Postgres.
 | `GET /internal/admin/providers/{id}/models` | Provider model catalog | Model tab |
 | `PUT /internal/admin/providers/{id}/models/{modelId}` | Upsert one model | Model editor |
 | `DELETE /internal/admin/providers/{id}/models/{modelId}` | Delete an unreferenced model | Model editor |
-| `GET /internal/admin/abilities` | Five abilities with every selectable model | Abilities catalog |
+| `GET /internal/admin/abilities` | Gateway abilities with their provider models | Abilities catalog |
 | `PUT /internal/admin/app-clients/{id}/routes` | Replace the complete ability route set | App-client Access tab |
 | `GET /internal/admin/users/{uid}/ledger` | Ledger rows, keyset pagination | Ledger table |
 | `GET /internal/admin/users/{uid}/usage` | Usage events, keyset pagination | Usage table |
@@ -113,7 +123,7 @@ same rows; the console reads them from Postgres.
   unique; keyset index `(uid, created_at DESC)`.
 - `usage_events`: metadata only (no content); keyset index `(uid, created_at DESC)`.
 - `abilities`: id, display_name, kind, sort_order, enabled, timestamps. Kinds are
-  `chat`, `tts`, `stt`, `embeddings`, `vector`.
+  `chat`, `tts`, `stt`, `embeddings`, `vector`, `search`.
 - `providers`: id, display_name, kind, base_url, enabled, AES-GCM ciphertext/nonce/hint and
   update time, config, timestamps. API keys are never returned.
 - `provider_models`: `(provider_id, model_id)`, display_name, ability, enabled, config,

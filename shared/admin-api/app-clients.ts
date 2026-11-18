@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { abilityIdSchema, abilityOrder } from "./abilities.js";
 import { isoDateTimeSchema, paginatedSchema } from "./common.js";
 
 export const appPlatformSchema = z.enum([
@@ -36,7 +37,7 @@ export const appClientRouteSchema = z.object({
 export type AppClientRoute = z.infer<typeof appClientRouteSchema>;
 
 export const appClientRouteInputSchema = z.object({
-  ability: z.enum(["llm", "tts", "stt", "embeddings", "vector"]),
+  ability: abilityIdSchema,
   providerId: z.string().min(1),
   modelId: z.string().min(1),
   enabled: z.boolean(),
@@ -45,7 +46,7 @@ export const appClientRouteInputSchema = z.object({
 export type AppClientRouteInput = z.infer<typeof appClientRouteInputSchema>;
 
 export const appClientRoutesInputSchema = z.object({
-  routes: z.array(appClientRouteInputSchema).max(5),
+  routes: z.array(appClientRouteInputSchema).max(abilityOrder.length),
 });
 
 export type AppClientRoutesInput = z.infer<typeof appClientRoutesInputSchema>;
@@ -99,7 +100,7 @@ export const appClientInputSchema = z.object({
   enabled: z.boolean(),
   requireFirebaseUid: z.boolean().default(false),
   /** New clients may send routes; the gateway mirrors capabilities for rollout. */
-  routes: z.array(appClientRouteInputSchema).max(5).optional(),
+  routes: z.array(appClientRouteInputSchema).max(abilityOrder.length).optional(),
   capabilities: z.array(appClientCapabilityInputSchema),
 });
 

@@ -33,7 +33,7 @@ The top bar carries the environment badge and theme toggle; identity and sign-ou
 Settings.
 
 - **Overview** is the landing route.
-- **Abilities** is the primary routing surface (five abilities → provider → model).
+- **Abilities** is the primary routing surface (ability → provider → model).
 - **Providers** manages credentials, base URLs, model catalogs, and health.
 - **App clients** manages consumer-app identities, per-ability routes, audit, and activity.
 - **Models** remains the legacy app-picker catalog and is lower priority.
@@ -142,7 +142,7 @@ degraded banner and still allows reading cached data; no fake zeros.
 
 ### 4.3 Abilities — `/abilities`
 
-**Purpose:** show the five coarse abilities apps can call and which providers/models can
+**Purpose:** show the gateway abilities apps can call and which providers/models can
 serve them. Legacy capability rows remain available as cost/limits profiles.
 
 Layout: page header with refresh; a table with Ability (name + mono id), Kind, Available
@@ -484,7 +484,7 @@ work at 360px, even if the tables scroll horizontally.
 | Pattern | Example |
 |---|---|
 | Page title | "Abilities" / "Providers" |
-| Page subtitle | "The five coarse abilities apps can call, and the providers that can serve them." |
+| Page subtitle | "Gateway abilities and the providers that serve them." |
 | Empty list | "No providers registered." + Add provider |
 | Empty detail | "No models serve this ability." + Open providers |
 | Error | "Couldn't load providers." + "Retry" + request ID |

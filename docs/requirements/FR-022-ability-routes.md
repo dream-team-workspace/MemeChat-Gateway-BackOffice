@@ -18,13 +18,13 @@ select exactly one provider/model per ability. The app still calls only the abil
 
 In scope:
 
-- `/abilities`: five-row catalog with kind, available providers, model counts, profiles.
+- `/abilities`: gateway catalog with kind, available providers, model counts, profiles.
 - `/abilities/:abilityId`: providers/models (enabled state + cost) and legacy cost profiles.
 - `/capabilities` redirects to `/abilities`; legacy profiles remain at
   `/capabilities/:capabilityId` for cost/limits, kill switch, and audit.
-- App-client Access tab: five fixed ability rows, provider/model selects, Remove, Save routes.
+- App-client Access tab: ability rows in fixed order, provider/model selects, Remove, Save routes.
 - Legacy fallback: no `routes` field or rollout flag off → read-only capability matrix.
-- Client list route summary (`n/5` plus five accessible ability dots) and provider/model display names.
+- Client list route summary (routed count plus accessible ability dots) and provider/model display names.
 
 Out of scope:
 
@@ -34,8 +34,8 @@ Out of scope:
 
 ## Behavior
 
-1. Abilities are ordered `llm`, `tts`, `stt`, `embeddings`, `vector`. All five rows render,
-   including unrouted ones.
+1. Abilities are ordered `llm`, `tts`, `stt`, `embeddings`, `vector`, `search`. Web search is
+   shown when the gateway exposes it, including when the client has no search route.
 2. Provider options are filtered by provider kind (defensively also by catalog models);
    model options by provider + ability + enabled. A currently selected disabled model stays
    visible with a warning.
@@ -57,16 +57,16 @@ Out of scope:
 
 ## Acceptance criteria
 
-- [x] `/abilities` lists the five abilities with available providers and model counts.
+- [x] `/abilities` lists the gateway abilities with available providers and model counts.
 - [x] Ability detail lists provider/model availability and legacy cost profiles.
-- [x] App-client Access shows all five abilities, including unrouted rows.
+- [x] App-client Access shows the supported abilities, including unrouted rows.
 - [x] Provider/model selection is filtered; invalid combinations cannot be submitted.
 - [x] Save sends only complete enabled routes and removes omitted rows.
 - [x] Dirty state resets after save; Discard restores the baseline.
 - [x] Missing provider key warns but does not block Save.
 - [x] Older gateways without `routes` show the read-only legacy banner.
 - [x] Rollout flag `VITE_ABILITY_ROUTES=false` disables the editor.
-- [x] Client list shows routed count and a five-dot ability summary.
+- [x] Client list shows routed count and an ability summary.
 - [x] A stored key that cannot be decrypted is distinct from a missing key in route warnings.
 - [x] A 404 route save returns to the list; a 422 highlights the affected row.
 
@@ -78,7 +78,7 @@ Out of scope:
 | PUT | `/api/admin/app-clients/:id/routes` | `PUT .../app-clients/:id/routes` |
 
 Route input: `{ability, providerId, modelId, enabled}`; BFF maps to `provider_id`/`model_id`.
-Response: updated `AppClient` with five route rows and the mirrored legacy matrix.
+Response: updated `AppClient` with one row per gateway ability and the mirrored legacy matrix.
 
 Schemas: `shared/admin-api/abilities.ts`, `shared/admin-api/app-clients.ts`.
 
@@ -99,7 +99,7 @@ Schemas: `shared/admin-api/abilities.ts`, `shared/admin-api/app-clients.ts`.
 
 - Unit: `toRouteDraft`, `routeInputs`, `routesEqual`, `firstIncomplete`, metadata preservation.
 - BFF: abilities proxy; routes PUT forwarding and camelization; 422 mapping; 404 behavior.
-- Browser: five rows, provider reset, missing/unreadable-key warnings, save, reload, legacy fallback.
+- Browser: ability rows, provider reset, missing/unreadable-key warnings, save, reload, legacy fallback.
 
 ## Traceability
 

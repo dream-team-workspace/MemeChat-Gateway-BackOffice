@@ -43,11 +43,13 @@ export function providerCanCheck(provider: ProviderStatus) {
 
 /** The only place the UI turns credential state into operator-facing copy. */
 export function providerCredentialSummary(
-  provider: Pick<ProviderStatus, "credentialState" | "apiKeyHint"> | Pick<Provider, "credentialState" | "apiKeyHint">,
+  provider: Pick<ProviderStatus, "kind" | "credentialState" | "apiKeyHint" | "hasApiKey"> | Pick<Provider, "kind" | "credentialState" | "apiKeyHint" | "hasApiKey">,
 ) {
   switch (provider.credentialState) {
     case "ready":
-      return "Key " + (provider.apiKeyHint ?? "configured");
+      return provider.kind === "search" && provider.hasApiKey === false
+        ? "No stored API key"
+        : "Key " + (provider.apiKeyHint ?? "configured");
     case "unreadable":
       return "Stored key unusable";
     default:

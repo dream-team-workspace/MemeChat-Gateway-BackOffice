@@ -18,7 +18,7 @@ const route = (ability: string, providerId: string | null, modelId: string | nul
 });
 
 describe("route draft", () => {
-  it("keeps the five abilities in fixed order and ignores unrouted rows", () => {
+  it("keeps the abilities in fixed order and ignores unrouted rows", () => {
     const draft = toRouteDraft([
       route("tts", "elevenlabs", "eleven_turbo_v2_5"),
       route("llm", "opencode", "deepseek-v4.1-flash"),
@@ -30,6 +30,7 @@ describe("route draft", () => {
       "stt",
       "embeddings",
       "vector",
+      "search",
     ]);
     expect(draft[0]).toMatchObject({ providerId: "opencode", modelId: "deepseek-v4.1-flash" });
     expect(draft[2]).toMatchObject({ providerId: "", modelId: "" });

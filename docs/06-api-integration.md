@@ -83,7 +83,7 @@ unrouted ability the provider/model fields are `null` and `enabled` is false. Th
 `capabilities` matrix remains on the payload as a rollout mirror. A create/update body may
 send `routes` (snake_case upstream) or `capabilities`; a supplied route set is authoritative
 and is mirrored into the legacy matrix in the same transaction. `PUT .../routes` replaces the
-complete set and accepts only complete enabled rows (max five); unknown abilities, duplicate
+complete set and accepts only complete enabled rows (up to six with Web search); unknown abilities, duplicate
 abilities, and provider/model/ability mismatches return 422.
 `requireFirebaseUid` (gateway input `require_firebase_uid`) is part of the app-client
 create/update body. When true, `/v1` requires the app-asserted `X-Firebase-Uid` header;
@@ -171,7 +171,7 @@ export interface Capability {
   updatedAt: IsoDateTime;
 }
 
-export type ProviderKind = "llm" | "tts" | "stt" | "embeddings" | "vector";
+export type ProviderKind = "llm" | "tts" | "stt" | "embeddings" | "vector" | "search";
 
 export interface ProviderModel {
   providerId: string;
@@ -208,7 +208,7 @@ export interface Provider {
 export interface Ability {
   id: string;
   displayName: string;
-  kind: "chat" | "tts" | "stt" | "embeddings" | "vector" | string;
+  kind: "chat" | "tts" | "stt" | "embeddings" | "vector" | "search" | string;
   sortOrder: number;
   enabled: boolean;
   models: ProviderModel[];
@@ -560,7 +560,7 @@ Content-Type: application/json
 ```
 
 The BFF converts to `provider_id`/`model_id`. The complete set is replaced; omitted abilities
-are unrouted. The response is the updated `AppClient` with all five route rows (nulls for
+are unrouted. The response is the updated `AppClient` with all gateway ability rows (nulls for
 unrouted abilities) and the mirrored legacy matrix.
 
 ### 8.7 Legacy app-picker model PUT
