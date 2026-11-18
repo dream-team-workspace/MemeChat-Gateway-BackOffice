@@ -310,6 +310,9 @@ function json(body: unknown, status = 200) {
   });
 }
 
+const testRotationId = "33333333-3333-4333-8333-333333333333";
+const testPreparedKey = "d".repeat(40);
+
 const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(String(input));
   const method = init?.method ?? "GET";
@@ -448,8 +451,25 @@ const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     // The gateway mux answers unknown admin routes with plain text.
     return new Response("404 page not found\n", { status: 404 });
   }
-  if (url.pathname === "/internal/admin/app-clients/" + appClient.id + "/key/rotate") {
-    return json({ ...appClient, clientKey: "0123456789abcdef0123456789abcdef01234567" });
+  const keyPath = "/internal/admin/app-clients/" + appClient.id + "/key/";
+  if (url.pathname === keyPath + "rotate") {
+    return json({ code: "KEY_PREPARATION_REQUIRED", message: "Prepare and activate separately." }, 409);
+  }
+  if (url.pathname === keyPath + "prepare") {
+    if (JSON.parse(body ?? "{}").rotationId !== testRotationId) {
+      return json({
+        code: "KEY_ROTATION_CONFLICT",
+        message: "A prepared key already exists.",
+        details: { rotationId: testRotationId, state: "pending", clientKey: testPreparedKey },
+      }, 409);
+    }
+    return json({ rotationId: testRotationId, clientKey: testPreparedKey }, 201);
+  }
+  if (url.pathname === keyPath + "activate") {
+    return json({ rotationId: testRotationId, keyRotatedAt: appClient.updatedAt });
+  }
+  if (url.pathname === keyPath + "cancel") {
+    return json({ rotationId: testRotationId, cancelled: true });
   }
   if (url.pathname === "/internal/admin/models") {
     return json({ items: [model] });
@@ -919,15 +939,59 @@ describe("live-only BFF admin API", () => {
     expect(calls.at(-1)?.body).toContain('"require_firebase_uid":true');
     expect(calls.at(-1)?.headers.get("X-Admin-Actor")).toBe("operator@test.local");
 
-    const rotated = await jsonBody<{ clientKey?: string }>(
-      await app.request("/api/admin/app-clients/" + appClient.id + "/key/rotate", { method: "POST" }),
-    );
-    expect(rotated.clientKey).toHaveLength(40);
-
     const removed = await jsonBody<{ deleted: boolean }>(
       await app.request("/api/admin/app-clients/" + appClient.id, { method: "DELETE" }),
     );
     expect(removed.deleted).toBe(true);
+  });
+
+  it("forwards the staged key contract and marks all rotation responses no-store", async () => {
+    const base = "/api/admin/app-clients/" + appClient.id + "/key/";
+    function post(action: string, body: Record<string, string>) {
+      return app.request(base + action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+
+    const rotation = { rotationId: testRotationId };
+    const prepared = await post("prepare", rotation);
+    expect(prepared.status).toBe(201);
+    expect(prepared.headers.get("cache-control")).toBe("no-store");
+    expect(await prepared.json()).toEqual({ ...rotation, clientKey: testPreparedKey });
+    expect(calls.at(-1)?.body).toBe(JSON.stringify(rotation));
+    expect(calls.at(-1)?.headers.get("X-Admin-Actor")).toBe("operator@test.local");
+    expect(calls.at(-1)?.headers.get("Authorization")).toBe("Bearer test-secret");
+
+    const activated = await post("activate", { ...rotation, clientKey: testPreparedKey });
+    expect(activated.status).toBe(200);
+    expect(activated.headers.get("cache-control")).toBe("no-store");
+    expect(await activated.json()).toEqual({ ...rotation, keyRotatedAt: appClient.updatedAt });
+    expect(calls.at(-1)?.body).toBe(JSON.stringify({ ...rotation, clientKey: testPreparedKey }));
+
+    const cancelled = await post("cancel", rotation);
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.headers.get("cache-control")).toBe("no-store");
+    expect(await cancelled.json()).toEqual({ ...rotation, cancelled: true });
+    expect(calls.at(-1)?.body).toBe(JSON.stringify(rotation));
+
+    const conflict = await post("prepare", { rotationId: "44444444-4444-4444-8444-444444444444" });
+    expect(conflict.status).toBe(409);
+    expect(conflict.headers.get("cache-control")).toBe("no-store");
+    const conflictBody = await conflict.json();
+    expect(conflictBody).toMatchObject({ code: "KEY_ROTATION_CONFLICT" });
+    expect(conflictBody.details).toEqual({ ...rotation, state: "pending" });
+
+    const legacy = await post("rotate", {});
+    expect(legacy.status).toBe(409);
+    expect(await legacy.json()).toMatchObject({ code: "KEY_PREPARATION_REQUIRED" });
+
+    calls.length = 0;
+    const invalid = await post("activate", { ...rotation, clientKey: "not-a-key" });
+    expect(invalid.status).toBe(422);
+    expect(invalid.headers.get("cache-control")).toBe("no-store");
+    expect(calls).toHaveLength(0);
   });
 
   it("proxies app client admin audit and user activity", async () => {

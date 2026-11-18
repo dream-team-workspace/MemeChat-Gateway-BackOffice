@@ -68,7 +68,7 @@ export const appClientSchema = z.object({
    * keeps working against a gateway that does not expose it yet.
    */
   clientKeySha1: z.string().nullable().optional(),
-  /** Returned only once by create or rotate-key; never by list/get. */
+  /** Returned once on client creation. Staged key operations use their own schemas. */
   clientKey: z.string().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
@@ -105,6 +105,35 @@ export const appClientInputSchema = z.object({
 });
 
 export type AppClientInput = z.infer<typeof appClientInputSchema>;
+
+const keyRotationId = z.uuid().refine(
+  (value) => value !== "00000000-0000-0000-0000-000000000000",
+  "Use a non-zero rotation UUID.",
+);
+const appClientKey = z.string().regex(/^[0-9a-f]{40}$/, "Use the prepared app-client key.");
+
+export const appClientKeyRotationInputSchema = z.object({
+  rotationId: keyRotationId,
+});
+
+export const appClientKeyRotationConflictSchema = appClientKeyRotationInputSchema.extend({
+  state: z.enum(["pending", "activated", "cancelled"]),
+});
+
+export const appClientKeyActivationInputSchema = appClientKeyRotationInputSchema.extend({
+  clientKey: appClientKey,
+});
+
+export const preparedAppClientKeySchema = appClientKeyActivationInputSchema;
+export type PreparedAppClientKey = z.infer<typeof preparedAppClientKeySchema>;
+
+export const activatedAppClientKeySchema = appClientKeyRotationInputSchema.extend({
+  keyRotatedAt: isoDateTimeSchema,
+});
+
+export const cancelledAppClientKeySchema = appClientKeyRotationInputSchema.extend({
+  cancelled: z.literal(true),
+});
 
 export const appClientDeleteSchema = z.object({
   deleted: z.boolean(),

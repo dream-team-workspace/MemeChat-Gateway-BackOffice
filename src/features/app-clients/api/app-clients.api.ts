@@ -1,9 +1,13 @@
 import {
+  activatedAppClientKeySchema,
   appClientActivityListSchema,
   appClientAuditListSchema,
   appClientDeleteSchema,
   appClientListSchema,
   appClientSchema,
+  cancelledAppClientKeySchema,
+  preparedAppClientKeySchema,
+  type PreparedAppClientKey,
   type AppClientInput,
   type AppClientRouteInput,
 } from "@shared/admin-api";
@@ -45,11 +49,23 @@ export const appClientsApi = {
     apiRequest("/api/admin/app-clients/" + encodeURIComponent(id), appClientDeleteSchema, {
       method: "DELETE",
     }),
-  rotateKey: (id: string) =>
+  prepareKey: (id: string, rotationId: string) =>
     apiRequest(
-      "/api/admin/app-clients/" + encodeURIComponent(id) + "/key/rotate",
-      appClientSchema,
-      { method: "POST" },
+      "/api/admin/app-clients/" + encodeURIComponent(id) + "/key/prepare",
+      preparedAppClientKeySchema,
+      { method: "POST", body: JSON.stringify({ rotationId }) },
+    ),
+  activateKey: (id: string, prepared: PreparedAppClientKey) =>
+    apiRequest(
+      "/api/admin/app-clients/" + encodeURIComponent(id) + "/key/activate",
+      activatedAppClientKeySchema,
+      { method: "POST", body: JSON.stringify(prepared) },
+    ),
+  cancelKey: (id: string, rotationId: string) =>
+    apiRequest(
+      "/api/admin/app-clients/" + encodeURIComponent(id) + "/key/cancel",
+      cancelledAppClientKeySchema,
+      { method: "POST", body: JSON.stringify({ rotationId }) },
     ),
   audit: (id: string, cursor?: string) =>
     apiRequest(
