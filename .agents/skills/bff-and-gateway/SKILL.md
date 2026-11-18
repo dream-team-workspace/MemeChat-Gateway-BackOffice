@@ -115,8 +115,8 @@ Keep these in mind when changing payloads; full detail is in `docs/06-api-integr
   `capabilities` matrix is a rollout mirror. Save with `PUT /app-clients/:id/routes` and send
   only complete enabled rows. Metadata edits must include the current `routes` so the gateway
   does not re-derive them.
-- **App-client identity**: `clientKeySha1` is the stored SHA-1 digest (not the key). The
-  plaintext key is returned only once by create/rotate.
+- **App-client identity**: `clientKeySha1` is the stored fingerprint. Create and prepare reveal
+  the plaintext key once. The staged key routes forward camelCase and use `Cache-Control: no-store`.
 - **App-client audit**: append-only rows with actor, action, safe before/after snapshots.
 - **Activity**: file-backed daily JSONL exposed as app-client-scoped and user-scoped pages with
   `date=dd_mm_yyyy` (default today). Rows are metadata-only; model is `null` and credits `0` in

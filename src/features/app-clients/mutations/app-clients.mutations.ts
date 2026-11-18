@@ -43,14 +43,6 @@ export function useSaveAppClientRoutes(id: string) {
   });
 }
 
-export function useRotateAppClientKey(id: string) {
-  const invalidate = useInvalidateAppClients();
-  return useMutation({
-    mutationFn: () => appClientsApi.rotateKey(id),
-    onSuccess: () => invalidate(id),
-  });
-}
-
 export function useDeleteAppClient() {
   const invalidate = useInvalidateAppClients();
   return useMutation({

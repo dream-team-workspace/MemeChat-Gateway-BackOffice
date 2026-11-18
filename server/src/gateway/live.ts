@@ -1,3 +1,5 @@
+import { appClientKeyRotationConflictSchema } from "../../../shared/admin-api/app-clients.js";
+
 import { config } from "../config.js";
 import { HttpError } from "../lib/errors.js";
 import type { Actor } from "../types.js";
@@ -76,6 +78,10 @@ export async function adminFetch(
       typeof record.message === "string"
         ? record.message
         : fallbackMessage || "The gateway admin API returned an error.";
+    if (response.status === 409 && code === "KEY_ROTATION_CONFLICT") {
+      const conflict = appClientKeyRotationConflictSchema.safeParse(record.details);
+      if (conflict.success) throw new HttpError(response.status, code, message, conflict.data);
+    }
     throw new HttpError(response.status, code, message);
   }
 

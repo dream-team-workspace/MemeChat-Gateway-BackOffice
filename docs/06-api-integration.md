@@ -53,7 +53,9 @@ an app-owned login session.
 | GET | `/api/admin/app-clients/:id` | `GET .../app-clients/{id}` | `AppClient` |
 | PUT | `/api/admin/app-clients/:id` | `PUT .../app-clients/{id}` | `AppClient` |
 | DELETE | `/api/admin/app-clients/:id` | `DELETE .../app-clients/{id}` | `{deleted}` |
-| POST | `/api/admin/app-clients/:id/key/rotate` | `POST .../app-clients/{id}/key/rotate` | `AppClient` with one-time `clientKey` |
+| POST | `/api/admin/app-clients/:id/key/prepare` | `POST .../app-clients/{id}/key/prepare` | `{rotationId, clientKey}` (201) |
+| POST | `/api/admin/app-clients/:id/key/activate` | `POST .../app-clients/{id}/key/activate` | `{rotationId, keyRotatedAt}` |
+| POST | `/api/admin/app-clients/:id/key/cancel` | `POST .../app-clients/{id}/key/cancel` | `{rotationId, cancelled: true}` |
 | GET | `/api/admin/app-clients/:id/audit` | `GET .../app-clients/{id}/audit?limit=&cursor=` | `{items,nextCursor}` |
 | GET | `/api/admin/app-clients/:id/activity` | `GET .../app-clients/{id}/activity?limit=&cursor=&date=dd_mm_yyyy` | `{items,nextCursor}` |
 | GET | `/api/admin/models` | `GET /internal/admin/models` | `Model[]` |
@@ -92,11 +94,17 @@ when false, the header is optional context.
 Metadata edits must include the current `routes` when the client has them; otherwise the
 gateway derives routes from the legacy matrix and may replace the operator's selection.
 
-Create and rotate responses include a one-time `clientKey` (40 lowercase hex). List/get return
-only `keyRotatedAt`; the plaintext key is never recoverable. The app authenticates
-`/v1/*` with `X-App-Client-Key: <key>`. `APP_CLIENT_AUTH=required` rejects missing or unknown
-keys with 401; an enabled client is still rejected for an unmapped capability with 403
-`CAPABILITY_NOT_IN_PLAN`. Rotation invalidates the previous key immediately.
+Create and prepare responses reveal `clientKey` once as 40 lowercase hex characters. List and
+detail show `keyRotatedAt` and the stored `clientKeySha1` fingerprint. Apps authenticate
+`/v1/*` with the issued key in `X-App-Client-Key`. `APP_CLIENT_AUTH=required` rejects missing or
+unknown keys with 401. An unmapped capability returns 403 `CAPABILITY_NOT_IN_PLAN`.
+
+Key preparation and cancellation forward `{rotationId}` unchanged. Activation forwards
+`{rotationId, clientKey}` unchanged. Key endpoints require the existing admin actor and return
+`Cache-Control: no-store`. Preparation keeps the existing key active. Activation changes the
+active key and refreshes the client detail. Retry uncertain activation with the same ID and
+key. A pending operation whose key was lost can be cancelled by ID. The legacy rotate
+endpoint returns 409 `KEY_PREPARATION_REQUIRED` on the current gateway.
 
 **Provider list vs detail.** `GET /providers` returns `ProviderStatus` rows: `kind`,
 `configured`, `hasApiKey`, `apiKeyHint`, `apiKeyUpdatedAt`, health, and a compact
