@@ -84,7 +84,7 @@ Current implementation differs from the target tree in `docs/03-architecture.md`
 | Domain | Purpose |
 |---|---|
 | `features/overview` | composition-only landing page; may consume public summary hooks |
-| `features/abilities` | five-ability catalog and detail; ability → provider → model availability |
+| `features/abilities` | gateway ability catalog and detail; ability → provider → model availability |
 | `features/capabilities` | legacy cost/limits profiles, kill switch, capability audit |
 | `features/app-clients` | app-client identity, Access routes, admin audit, user activity |
 | `features/providers` | provider CRUD, write-only API keys, model catalog, health |

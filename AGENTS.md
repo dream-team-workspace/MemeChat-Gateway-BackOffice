@@ -11,7 +11,7 @@
 - Providers, abilities, app-client routes, models, users, operations, and settings are wired
   through TanStack Query and the BFF. The old dummy pages and `features/dashboard` are removed.
 - Ability → provider → model routing is implemented in the console: provider CRUD with
-  write-only API keys, provider model catalogs, a five-ability catalog, and the app-client
+  write-only API keys, provider model catalogs, the gateway ability catalog, and the app-client
   Access editor that saves `PUT /app-clients/:id/routes`. The console derives
   `credentialState` (`ready` / `missing` / `unreadable`) from `configured` + `hasApiKey`,
   distinguishes a stored-but-unreadable key from a missing key, and enriches 409 delete

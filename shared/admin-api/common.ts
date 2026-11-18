@@ -105,10 +105,22 @@ export function deriveCredentialState(value: {
   return value.hasApiKey ? "unreadable" : "missing";
 }
 
+/** Coarse ability IDs also identify provider kinds. */
+export const providerKindSchema = z.enum([
+  "llm",
+  "tts",
+  "stt",
+  "embeddings",
+  "vector",
+  "search",
+]);
+
+export type ProviderKind = z.infer<typeof providerKindSchema>;
+
 export const providerStatusSchema = z.object({
   id: z.string(),
   displayName: z.string(),
-  kind: z.enum(["llm", "tts", "stt", "embeddings", "vector"]).optional(),
+  kind: providerKindSchema.optional(),
   role: z.string(),
   enabled: z.boolean().default(true),
   capabilities: z.array(z.string()).optional(),

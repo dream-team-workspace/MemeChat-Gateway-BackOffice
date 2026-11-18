@@ -111,7 +111,7 @@ Keep these in mind when changing payloads; full detail is in `docs/06-api-integr
   (`status`, `checkedAt`, `latencyMs`, `detail`, `checkedBy`). Current configuration still wins
   over historical health for display.
 - **Abilities/routes**: an app client has at most one provider/model per coarse ability
-  (`llm`, `tts`, `stt`, `embeddings`, `vector`). `routes` is authoritative; the legacy
+  (`llm`, `tts`, `stt`, `embeddings`, `vector`, `search`). `routes` is authoritative; the legacy
   `capabilities` matrix is a rollout mirror. Save with `PUT /app-clients/:id/routes` and send
   only complete enabled rows. Metadata edits must include the current `routes` so the gateway
   does not re-derive them.

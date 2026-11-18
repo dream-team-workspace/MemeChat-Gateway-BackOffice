@@ -1,15 +1,7 @@
-import { abilityOrder, type AppClient } from "@shared/admin-api";
+import { abilityLabels, abilityOrder, type AppClient } from "@shared/admin-api";
 
 import { routedAbilityCount } from "@/features/app-clients/lib/app-client-routes";
 import { cn } from "@/lib/utils";
-
-const shortLabels = {
-  llm: "L",
-  tts: "T",
-  stt: "S",
-  embeddings: "E",
-  vector: "V",
-} as const;
 
 export function RouteSummary({ client }: { client: AppClient }) {
   if (!client.routes) {
@@ -20,6 +12,9 @@ export function RouteSummary({ client }: { client: AppClient }) {
     );
   }
 
+  const available = abilityOrder.filter(
+    (ability) => ability !== "search" || client.routes?.some((route) => route.ability === ability),
+  );
   const routed = new Set(
     client.routes
       .filter((route) => route.enabled && route.providerId !== null && route.modelId !== null)
@@ -29,10 +24,10 @@ export function RouteSummary({ client }: { client: AppClient }) {
   return (
     <span
       className="inline-flex items-center gap-2"
-      aria-label={routed.size + " of 5 abilities routed"}
+      aria-label={routed.size + " of " + available.length + " abilities routed"}
     >
       <span className="flex items-center gap-1" aria-hidden="true">
-        {abilityOrder.map((ability) => (
+        {available.map((ability) => (
           <span
             key={ability}
             title={(routed.has(ability) ? "Routed: " : "Not routed: ") + ability}
@@ -43,9 +38,9 @@ export function RouteSummary({ client }: { client: AppClient }) {
           />
         ))}
       </span>
-      <span className="font-mono text-[10px] text-muted-foreground">{routed.size}/5</span>
+      <span className="font-mono text-[10px] text-muted-foreground">{routed.size}/{available.length}</span>
       <span className="sr-only">
-        {abilityOrder.map((ability) => shortLabels[ability] + (routed.has(ability) ? " routed" : " not routed")).join(", ")}
+        {available.map((ability) => abilityLabels[ability] + (routed.has(ability) ? " routed" : " not routed")).join(", ")}
       </span>
     </span>
   );

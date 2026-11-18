@@ -1,17 +1,8 @@
 import { z } from "zod";
 
-import { credentialStateSchema, isoDateTimeSchema } from "./common.js";
+import { credentialStateSchema, isoDateTimeSchema, providerKindSchema } from "./common.js";
 
-/** Coarse ability/provider kind used by the gateway registry. */
-export const providerKindSchema = z.enum([
-  "llm",
-  "tts",
-  "stt",
-  "embeddings",
-  "vector",
-]);
-
-export type ProviderKind = z.infer<typeof providerKindSchema>;
+export { providerKindSchema, type ProviderKind } from "./common.js";
 
 /** One model advertised by a provider. This is the full detail shape. */
 export const providerCatalogModelSchema = z.object({

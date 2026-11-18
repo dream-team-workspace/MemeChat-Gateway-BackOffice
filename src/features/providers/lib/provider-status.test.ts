@@ -51,6 +51,12 @@ describe("provider credential states", () => {
     expect(providerRouteWarning(provider)?.title).toBe("Provider key is missing");
   });
 
+  it("does not show a missing-key warning for configured Web search without a stored key", () => {
+    const provider = status({ kind: "search", hasApiKey: false });
+    expect(providerCredentialSummary(provider)).toBe("No stored API key");
+    expect(providerRouteWarning(provider)).toBeNull();
+  });
+
   it("shows disabled before health and allows probing a ready credential", () => {
     expect(providerDisplayState(status({ enabled: false })).label).toBe("Disabled");
     expect(providerCanCheck(status({}))).toBe(true);

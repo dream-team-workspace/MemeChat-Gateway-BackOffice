@@ -77,6 +77,12 @@ export function RouteEditor({ client }: { client: AppClient }) {
     );
   }
 
+  const visibleAbilities = abilityOrder.filter(
+    (ability) => ability !== "search" ||
+      editor.abilities.data?.items.some((item) => item.id === ability) ||
+      client.routes?.some((route) => route.ability === ability),
+  );
+
   return (
     <>
       <Card className="mt-5">
@@ -99,7 +105,7 @@ export function RouteEditor({ client }: { client: AppClient }) {
             />
           ) : (
             <div className="divide-y divide-border">
-              {abilityOrder.map((ability) => {
+              {visibleAbilities.map((ability) => {
                 const row = editor.draft.find((item) => item.ability === ability) ?? {
                   ability,
                   providerId: "",

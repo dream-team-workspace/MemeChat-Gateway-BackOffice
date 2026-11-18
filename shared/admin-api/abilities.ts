@@ -1,14 +1,9 @@
 import { z } from "zod";
 
+import { providerKindSchema } from "./common.js";
 import { providerCatalogModelSchema } from "./providers.js";
 
-export const abilityIdSchema = z.enum([
-  "llm",
-  "tts",
-  "stt",
-  "embeddings",
-  "vector",
-]);
+export const abilityIdSchema = providerKindSchema;
 
 export type AbilityId = z.infer<typeof abilityIdSchema>;
 
@@ -18,6 +13,7 @@ export const abilityKindSchema = z.enum([
   "stt",
   "embeddings",
   "vector",
+  "search",
 ]);
 
 export type AbilityKind = z.infer<typeof abilityKindSchema>;
@@ -40,13 +36,7 @@ export const abilityListSchema = z.object({
 
 export type AbilityList = z.infer<typeof abilityListSchema>;
 
-export const abilityOrder = [
-  "llm",
-  "tts",
-  "stt",
-  "embeddings",
-  "vector",
-] as const;
+export const abilityOrder = abilityIdSchema.options;
 
 export const abilityLabels: Record<(typeof abilityOrder)[number], string> = {
   llm: "Language model",
@@ -54,6 +44,7 @@ export const abilityLabels: Record<(typeof abilityOrder)[number], string> = {
   stt: "Speech to text",
   embeddings: "Embeddings",
   vector: "Vector storage",
+  search: "Web search",
 };
 
 /** Maps legacy capability kinds (chat, chat.standard, embeddings.fast) to abilities. */

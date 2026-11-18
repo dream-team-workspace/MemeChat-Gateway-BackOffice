@@ -75,17 +75,17 @@ revision
 
 abilities
   Only the abilities this app client has enabled routes for, in fixed order:
-  llm, tts, stt, embeddings, vector.
+  llm, tts, stt, embeddings, vector, search.
   An unrouted ability is omitted, not returned with enabled=false.
 
 abilities[].id
-  llm | tts | stt | embeddings | vector
+  llm | tts | stt | embeddings | vector | search
 
 abilities[].displayName
   Human-readable ability name.
 
 abilities[].kind
-  chat | tts | stt | embeddings | vector
+  chat | tts | stt | embeddings | vector | search
 
 abilities[].provider
   { "id": "...", "displayName": "..." }
